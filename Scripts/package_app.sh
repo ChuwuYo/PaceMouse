@@ -180,17 +180,19 @@ DEFAULT_ENTITLEMENTS="$ENTITLEMENTS_DIR/${APP_NAME}.entitlements"
 mkdir -p "$ENTITLEMENTS_DIR"
 
 APP_ENTITLEMENTS=${APP_ENTITLEMENTS:-$DEFAULT_ENTITLEMENTS}
-if [[ ! -f "$APP_ENTITLEMENTS" ]]; then
-  cat > "$APP_ENTITLEMENTS" <<PLIST
+# Always ensure library-validation entitlement exists. Hardened Runtime + embedded
+# Sparkle fails to load with "different Team IDs" when the signing identity has no
+# Apple Team ID (self-signed PaceMouse Development).
+cat > "$APP_ENTITLEMENTS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Add entitlements here if needed. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
 </dict>
 </plist>
 PLIST
-fi
 
 if [[ "$SIGNING_MODE" == "adhoc" || -z "$APP_IDENTITY" ]]; then
   CODESIGN_ARGS=(--force --sign "-")

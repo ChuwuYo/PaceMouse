@@ -34,6 +34,11 @@ fi
 
 test -x "$APP/Contents/MacOS/$APP_NAME" && pass "executable" || fail "executable"
 test -d "$APP/Contents/Frameworks/Sparkle.framework" && pass "Sparkle.framework" || fail "Sparkle.framework"
+if codesign -d --entitlements - "$APP" 2>/dev/null | grep -q 'disable-library-validation'; then
+  pass "entitlement disable-library-validation"
+else
+  fail "entitlement disable-library-validation (required for Sparkle under Hardened Runtime)"
+fi
 if otool -l "$APP/Contents/MacOS/$APP_NAME" | grep -q '@executable_path/../Frameworks'; then
   pass "rpath Frameworks"
 else
