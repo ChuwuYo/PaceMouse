@@ -18,7 +18,7 @@ macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多�
 
 1. 从 [Releases](https://github.com/ChuwuYo/PaceMouse/releases) 下载 DMG 安装包
 2. 打开后把 PaceMouse 拖进「应用程序」
-3. 首次打开：右键 → **打开**（自签名开发构建，Gatekeeper 会提示一次）
+3. 首次打开若被拦截：到 **系统设置 → 隐私与安全性** 点 **仍要打开**（或右键 App → 打开）
 4. 按提示授予**辅助功能**权限
 
 ## 截图

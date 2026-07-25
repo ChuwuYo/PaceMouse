@@ -1,5 +1,7 @@
 .DS_Store
 *.dmg
+Scripts/dmg_assets/background.png
+Scripts/dmg_assets/background.tiff
 Reference/
 .build/
 *.app

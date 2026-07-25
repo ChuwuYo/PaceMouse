@@ -66,11 +66,12 @@ private final class CapsuleButton: NSButton {
 }
 
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuDelegate {
     var onToggleEnabled: (() -> Void)?
     var onSelectRate: ((Double) -> Void)?
     var onRequestPermission: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onMenuWillOpen: (() -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
@@ -86,6 +87,7 @@ final class StatusItemController: NSObject {
     override init() {
         super.init()
         updateIcon()
+        menu.delegate = self
 
         statsItem.isEnabled = false
         menu.addItem(statsItem)
@@ -233,7 +235,19 @@ final class StatusItemController: NSObject {
 
     @objc private func permissionClicked() { onRequestPermission?() }
 
-    @objc private func settingsClicked() { onOpenSettings?() }
+    @objc private func settingsClicked() {
+        menu.cancelTracking()
+        DispatchQueue.main.async { [weak self] in
+            self?.onOpenSettings?()
+        }
+    }
 
-    @objc private func quitClicked() { NSApp.terminate(nil) }
+    @objc private func quitClicked() {
+        menu.cancelTracking()
+        NSApp.terminate(nil)
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        onMenuWillOpen?()
+    }
 }

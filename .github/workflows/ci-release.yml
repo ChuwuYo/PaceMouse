@@ -123,6 +123,9 @@ jobs:
         run: |
           set -euo pipefail
           source version.env
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install create-dmg
+          create-dmg --version
           Scripts/make_dmg.sh
           printf '%s\n' "$MARKETING_VERSION" > version-name.txt
           printf '%s\n' "$GITHUB_SHA" > source-sha.txt
@@ -356,7 +359,7 @@ jobs:
 
           **Install**
           1. Download the DMG below and drag PaceMouse into Applications
-          2. First launch: right-click → Open (dev-signed; Gatekeeper warns once)
+          2. If macOS blocks the first launch: System Settings → Privacy & Security → Open Anyway (or right-click → Open)
           3. Grant Accessibility when asked
 
           - Version: v${version_name}
@@ -372,7 +375,7 @@ jobs:
 
           **安装**
           1. 下载下方 DMG，拖进「应用程序」
-          2. 首次打开：右键 → 打开（自签名开发证书，Gatekeeper 会提示一次）
+          2. 首次打开若被拦截：系统设置 → 隐私与安全性 → 仍要打开（或右键 App → 打开）
           3. 按提示授予辅助功能权限
 
           - 版本：v${version_name}

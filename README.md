@@ -18,7 +18,7 @@ macOS does not support high mouse polling rates (>500 Hz) well. If you share one
 
 1. Download the DMG from [Releases](https://github.com/ChuwuYo/PaceMouse/releases)
 2. Open it and drag PaceMouse into Applications
-3. First launch: right-click → **Open** (dev-signed build; Gatekeeper warns once)
+3. If macOS blocks the first launch: **System Settings → Privacy & Security → Open Anyway** (or right-click → Open)
 4. Grant **Accessibility** when asked
 
 ## Screenshots

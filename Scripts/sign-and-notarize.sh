@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME=${APP_NAME:-MyApp}
+APP_NAME=${APP_NAME:-PaceMouse}
 APP_IDENTITY=${APP_IDENTITY:-"Developer ID Application: Example (TEAMID)"}
 APP_BUNDLE="${APP_NAME}.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

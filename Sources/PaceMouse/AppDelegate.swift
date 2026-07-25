@@ -37,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onOpenSettings = { [weak self] in
             self?.settingsWindow.present()
         }
+        statusController.onMenuWillOpen = { [weak self] in
+            self?.settingsWindow.dismiss()
+        }
         settingsWindow.onChange = { [weak self] in
             self?.apply()
         }

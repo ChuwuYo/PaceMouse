@@ -60,6 +60,11 @@ final class SettingsWindowController: NSWindowController {
         rateMonitor.start()
     }
 
+    func dismiss() {
+        rateMonitor.stop()
+        window?.orderOut(nil)
+    }
+
     private func updatePollingRate(current: Int, peak: Int) {
         lastPollingCurrent = current
         lastPollingPeak = peak
