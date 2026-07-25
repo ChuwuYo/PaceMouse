@@ -5,8 +5,9 @@
 <h1 align="center">PaceMouse</h1>
 
 <p align="center">
-  <a href="README.md"><img src="https://img.shields.io/badge/English-64748B?style=for-the-badge" alt="English"></a>
-  <img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-0891B2?style=for-the-badge" alt="中文">
+  <a href="README.md">English</a>
+  &nbsp;·&nbsp;
+  <strong>中文</strong>
 </p>
 
 macOS 菜单栏工具：把高回报率鼠标的 **移动 / 拖拽** 事件节流掉，减轻卡顿。
