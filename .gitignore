@@ -2,6 +2,9 @@
 *.dmg
 Scripts/dmg_assets/background.png
 Scripts/dmg_assets/background.tiff
+Secrets/
+appcast.xml
+PaceMouse-*.zip
 Reference/
 .build/
 *.app

@@ -7,6 +7,11 @@ final class SettingsWindowController: NSWindowController {
     var onChange: (() -> Void)?
     var onRequestPermission: (() -> Void)?
     var onOpenShakeSettings: (() -> Void)?
+    var isAutoCheckEnabled: () -> Bool = { true }
+    var onAutoCheckChange: ((Bool) -> Void)?
+    var canCheckForUpdates: () -> Bool = { true }
+    var onCheckForUpdates: (() -> Void)?
+    var onPreReleaseChange: ((Bool) -> Void)?
 
     private let settings: SettingsStore
     private let smartCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -17,6 +22,9 @@ final class SettingsWindowController: NSWindowController {
     private let permissionLabel = NSTextField(labelWithString: "")
     private let permissionButton = NSButton(title: "", target: nil, action: nil)
     private let statsCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let autoUpdateCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let preReleaseCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let checkUpdateButton = NSButton(title: "", target: nil, action: nil)
     private let languageSegments = NSSegmentedControl()
     private let languageLabel = NSTextField(labelWithString: "")
     private let shakeButton = NSButton(title: "", target: nil, action: nil)
@@ -29,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
     init(settings: SettingsStore) {
         self.settings = settings
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 460),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false)
@@ -91,6 +99,12 @@ final class SettingsWindowController: NSWindowController {
         loginHint.isHidden = !needsApproval
         statsCheck.title = tr("Show Live Rate in Menu")
         statsCheck.state = settings.showLiveStats ? .on : .off
+        autoUpdateCheck.title = tr("Automatically Check for Updates")
+        autoUpdateCheck.state = isAutoCheckEnabled() ? .on : .off
+        preReleaseCheck.title = tr("Include Pre-release Updates")
+        preReleaseCheck.state = settings.includePreReleaseUpdates ? .on : .off
+        checkUpdateButton.title = tr("Check for Updates…")
+        checkUpdateButton.isEnabled = canCheckForUpdates()
         languageLabel.stringValue = tr("Language")
         languageSegments.setLabel(tr("System"), forSegment: 0)
         if let index = L10n.supportedLanguages.firstIndex(of: settings.language) {
@@ -132,6 +146,16 @@ final class SettingsWindowController: NSWindowController {
         statsCheck.target = self
         statsCheck.action = #selector(statsClicked)
 
+        autoUpdateCheck.target = self
+        autoUpdateCheck.action = #selector(autoUpdateClicked)
+
+        preReleaseCheck.target = self
+        preReleaseCheck.action = #selector(preReleaseClicked)
+
+        checkUpdateButton.target = self
+        checkUpdateButton.action = #selector(checkUpdateClicked)
+        checkUpdateButton.bezelStyle = .rounded
+
         languageSegments.segmentCount = L10n.supportedLanguages.count
         languageSegments.trackingMode = .selectOne
         languageSegments.setLabel("中文", forSegment: 1)
@@ -163,7 +187,8 @@ final class SettingsWindowController: NSWindowController {
         separator.boxType = .separator
 
         let stack = NSStackView(views: [
-            smartCheck, thresholdRow, loginCheck, loginHint, statsCheck, languageRow,
+            smartCheck, thresholdRow, loginCheck, loginHint, statsCheck,
+            autoUpdateCheck, preReleaseCheck, checkUpdateButton, languageRow,
             separator, pollingRateLabel, permissionRow, shakeButton, versionLabel,
         ])
         stack.orientation = .vertical
@@ -210,6 +235,21 @@ final class SettingsWindowController: NSWindowController {
     @objc private func statsClicked() {
         settings.showLiveStats = statsCheck.state == .on
         onChange?()
+    }
+
+    @objc private func autoUpdateClicked() {
+        onAutoCheckChange?(autoUpdateCheck.state == .on)
+    }
+
+    @objc private func preReleaseClicked() {
+        let include = preReleaseCheck.state == .on
+        settings.includePreReleaseUpdates = include
+        onPreReleaseChange?(include)
+        onChange?()
+    }
+
+    @objc private func checkUpdateClicked() {
+        onCheckForUpdates?()
     }
 
     @objc private func languageClicked() {

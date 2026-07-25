@@ -30,3 +30,8 @@
 "You can change this later in Settings." = "You can change this later in Settings.";
 "Start at Login" = "Start at Login";
 "Not Now" = "Not Now";
+"Automatically Check for Updates" = "Automatically Check for Updates";
+"Include Pre-release Updates" = "Include Pre-release Updates";
+"Check for Updates…" = "Check for Updates…";
+"Update Available — v%@…" = "Update Available — v%@…";
+"Update Available" = "Update Available";

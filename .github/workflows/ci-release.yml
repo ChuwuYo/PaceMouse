@@ -47,7 +47,19 @@ jobs:
       - name: Verify bundle structure
         run: |
           test -x PaceMouse.app/Contents/MacOS/PaceMouse
+          test -d PaceMouse.app/Contents/Frameworks/Sparkle.framework
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" PaceMouse.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" PaceMouse.app/Contents/Info.plist | grep -q .
+
+      - name: Verify update channel
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          chmod +x Scripts/verify_update_channel.sh Scripts/make_appcast.sh
+          # PR/fork may lack the secret; packaging/wiring still must pass.
+          # Release job requires a signed appcast via make_appcast.sh + SPARKLE_PRIVATE_KEY.
+          SIGNING_MODE=adhoc Scripts/verify_update_channel.sh
           /usr/libexec/PlistBuddy -c "Print :LSUIElement" PaceMouse.app/Contents/Info.plist | grep -q true
           lipo -archs PaceMouse.app/Contents/MacOS/PaceMouse
 
@@ -120,6 +132,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :LSUIElement" PaceMouse.app/Contents/Info.plist | grep -q true
 
       - name: Record release metadata
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           source version.env
@@ -127,8 +141,16 @@ jobs:
           brew install create-dmg
           create-dmg --version
           Scripts/make_dmg.sh
+          test -n "${SPARKLE_PRIVATE_KEY:-}"
+          Scripts/make_appcast.sh
           printf '%s\n' "$MARKETING_VERSION" > version-name.txt
           printf '%s\n' "$GITHUB_SHA" > source-sha.txt
+          printf '%s\n' "${RELEASE_CHANNEL:-}" > release-channel.txt
+          if [[ -n "${RELEASE_CHANNEL:-}" ]]; then
+            grep -Fq "<sparkle:channel>${RELEASE_CHANNEL}</sparkle:channel>" appcast.xml
+          else
+            ! grep -q '<sparkle:channel>' appcast.xml
+          fi
 
       - name: Delete signing keychain
         if: ${{ always() }}
@@ -140,8 +162,11 @@ jobs:
           name: pacemouse-release-app
           path: |
             PaceMouse-*.dmg
+            PaceMouse-*.zip
+            appcast.xml
             version-name.txt
             source-sha.txt
+            release-channel.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -167,6 +192,7 @@ jobs:
           set -euo pipefail
           dmg="$(ls release/PaceMouse-*.dmg | head -1)"
           version_name="$(cat release/version-name.txt)"
+          release_channel="$(tr -d '[:space:]' < release/release-channel.txt || true)"
           final_name="PaceMouse-${version_name}.dmg"
           test "$(basename "$dmg")" = "$final_name"
           source_sha="$(cat release/source-sha.txt)"
@@ -194,8 +220,18 @@ jobs:
 
           ensure_release() {
             if ! gh api "$release_api" > /dev/null 2>&1; then
-              gh release create app-latest --repo "$GITHUB_REPOSITORY" \
-                --title "PaceMouse Latest" --notes "Rolling release channel" --prerelease > /dev/null
+              create_args=(
+                release create app-latest
+                --repo "$GITHUB_REPOSITORY"
+                --title "PaceMouse Latest"
+                --notes "Rolling release channel"
+              )
+              if [[ -n "$release_channel" ]]; then
+                create_args+=(--prerelease)
+              else
+                create_args+=(--latest)
+              fi
+              gh "${create_args[@]}" > /dev/null
             fi
             gh api "$release_api"
           }
@@ -253,6 +289,49 @@ jobs:
           test -z "$(asset_id_by_name "$staged_name")"
           test -z "$(asset_id_by_name "$rollback_name")"
 
+          zip_name="PaceMouse-${version_name}.zip"
+          zip_mutated=0
+          appcast_mutated=0
+          appcast_backup=""
+          zip_backup=""
+          old_appcast_id="$(asset_id_by_name "appcast.xml")"
+          if [ -n "$old_appcast_id" ]; then
+            appcast_backup="$RUNNER_TEMP/appcast-before.xml"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$old_appcast_id" > "$appcast_backup"
+            test -s "$appcast_backup"
+          fi
+          old_same_zip_id="$(asset_id_by_name "$zip_name")"
+          if [ -n "$old_same_zip_id" ]; then
+            zip_backup="$RUNNER_TEMP/zip-before.zip"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$old_same_zip_id" > "$zip_backup"
+            test -s "$zip_backup"
+          fi
+
+          rollback_sparkle_asset() {
+            local mutated_var="$1"
+            local asset_name="$2"
+            local backup_path="$3"
+            local mutated_value asset_id
+            eval "mutated_value=\${$mutated_var:-0}"
+            if [ "$mutated_value" -ne 1 ]; then
+              return 0
+            fi
+            if [ -n "$backup_path" ] && [ -f "$backup_path" ]; then
+              cp "$backup_path" "$RUNNER_TEMP/$asset_name"
+              gh release upload app-latest "$RUNNER_TEMP/$asset_name" \
+                --repo "$GITHUB_REPOSITORY" --clobber >/dev/null || return 1
+            else
+              asset_id="$(asset_id_by_name "$asset_name")"
+              if [ -n "$asset_id" ]; then
+                gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" >/dev/null \
+                  || return 1
+              fi
+            fi
+            return 0
+          }
+
           rollback_publish() {
             local status="$1"
             local cleanup_id old_name current_tag current_metadata expected_metadata
@@ -286,6 +365,9 @@ jobs:
                   -f name="$old_asset_name" >/dev/null || rollback_failed=1
               fi
             fi
+
+            rollback_sparkle_asset zip_mutated "$zip_name" "${zip_backup:-}" || rollback_failed=1
+            rollback_sparkle_asset appcast_mutated "appcast.xml" "${appcast_backup:-}" || rollback_failed=1
 
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
               --input "$metadata_before" >/dev/null || rollback_failed=1
@@ -381,11 +463,18 @@ jobs:
           - 版本：v${version_name}
           - 提交：${GITHUB_SHA}
           EOF
-          gh release edit app-latest \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "PaceMouse v${version_name}" \
-            --notes-file "$notes" \
-            --prerelease
+          edit_args=(
+            release edit app-latest
+            --repo "$GITHUB_REPOSITORY"
+            --title "PaceMouse v${version_name}"
+            --notes-file "$notes"
+          )
+          if [[ -n "$release_channel" ]]; then
+            edit_args+=(--prerelease)
+          else
+            edit_args+=(--prerelease=false --latest)
+          fi
+          gh "${edit_args[@]}"
 
           # 新资产和发布说明就绪后才移动轻量 tag。
           assert_current_main
@@ -400,6 +489,17 @@ jobs:
           test "$(shasum -a 256 "$RUNNER_TEMP/published.dmg" | awk '{print $1}')" = "$expected_digest"
 
           # 若发布期间 main 已前进，就在旧资产仍可恢复时主动回滚本次结果。
+          assert_current_main
+
+          # Sparkle 通道与 DMG 同属可回滚窗口；分文件上传，开始 mutate 前先置位以便失败可恢复。
+          test -f "release/$zip_name"
+          test -f release/appcast.xml
+          zip_mutated=1
+          gh release upload app-latest "release/$zip_name" --repo "$GITHUB_REPOSITORY" --clobber
+          test -n "$(asset_id_by_name "$zip_name")"
+          appcast_mutated=1
+          gh release upload app-latest release/appcast.xml --repo "$GITHUB_REPOSITORY" --clobber
+          test -n "$(asset_id_by_name "appcast.xml")"
           assert_current_main
 
           # 新状态已完整核验，从这里开始只清理旧副本。
@@ -418,6 +518,15 @@ jobs:
                 '.assets[] | select(.name | test("^PaceMouse-.*\\.dmg$")) | select(.name != $final) | .id'
           )
 
+          while IFS= read -r old_zip_id; do
+            [ -n "$old_zip_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old_zip_id" >/dev/null
+          done < <(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq -r --arg keep "$zip_name" \
+                '.assets[] | select(.name | test("^PaceMouse-.*\\.zip$")) | select(.name != $keep) | .id'
+          )
+
           fixed_count="$(
             gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
               | jq --arg name "$final_name" '[.assets[] | select(.name == $name)] | length'
@@ -434,3 +543,5 @@ jobs:
           test "$dmg_asset_count" = '1'
           test "$final_asset_id" = "$staged_id"
           test "$final_digest" = "sha256:$expected_digest"
+          test -n "$(asset_id_by_name "$zip_name")"
+          test -n "$(asset_id_by_name "appcast.xml")"

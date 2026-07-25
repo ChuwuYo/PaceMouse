@@ -33,18 +33,24 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 
 ```
 ┌─ L0 App Shell      main / AppDelegate / StatusItemController / SettingsWindowController
-│                    菜单栏开关与频率、设置窗、智能模式、本地化；不实现节流算法
+│                    菜单栏开关与频率、设置窗、智能模式、本地化、更新提示；不实现节流算法
+│                    UpdateController —— Sparkle（自动/手动检查；静默发现后菜单项+图标提示，安装需确认）
 ├─ L1 Control        SettingsStore（UserDefaults：enabled、targetHz、autoMode、autoThreshold、
-│                    language、showLiveStats、permission/login prompt 标记）
+│                    language、showLiveStats、includePreReleaseUpdates、permission/login prompt 标记）
+│                    自动检查更新开关走 Sparkle `automaticallyChecksForUpdates`（默认开）
+│                    预发布更新：`includePreReleaseUpdates`（默认开）→ Sparkle `allowedChannels(["pre-release"])`
 ├─ L2 Core           ThrottleCore —— 位移累加器与统计（纯逻辑，可单测）
 │                    TapBridge —— CGEventTap 生命周期、令牌桶、bypass、峰值统计、超时自愈
 │                    PointerTuner —— 节流期间指针加速置 0 / 恢复
 │                    HidRateMonitor —— 设置页硬件回报率测量
 │                    Permissions —— Accessibility 检测与引导
-├─ L3 Native         PaceMouseHID（C shim）+ 打包 / 签名脚本
+│                    UpdateChannel —— Sparkle 渠道集合（pre-release / stable）
+├─ L3 Native         PaceMouseHID（C shim）+ 打包 / 签名 / Sparkle appcast 脚本
 ```
 
 依赖：只允许上层依赖下层；`PaceMouseCore` 不依赖 App 层；UI 经 `SettingsStore` / `AppDelegate` 驱动 `TapBridge`。
+
+更新渠道：`version.env` 的 `RELEASE_CHANNEL`（当前 `pre-release`）写入 appcast 的 `sparkle:channel`；空则发到 Sparkle 默认稳定渠道。正式 1.x 时清空该变量即可。
 
 ### 备选：虚拟 HID（未采用）
 
@@ -96,8 +102,11 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 
 ## CI & release
 
-- `.github/workflows/ci-release.yml`：push/PR 跑验证；`main` 通过后签名并滚动更新 `app-latest` Release（暂存资产 → 原子换名 → 可回滚 → 移 tag → 终态核验）
-- Secrets：`PACEMOUSE_DEV_CERT_P12_BASE64`、`PACEMOUSE_DEV_CERT_PASSWORD`、`PACEMOUSE_DEV_CERT_SHA256`
+- `.github/workflows/ci-release.yml`：push/PR 跑验证；`main` 通过后签名并滚动更新 `app-latest` Release（DMG 原子换名 + Sparkle `appcast.xml` / zip）
+- Secrets：`PACEMOUSE_DEV_CERT_P12_BASE64`、`PACEMOUSE_DEV_CERT_PASSWORD`、`PACEMOUSE_DEV_CERT_SHA256`、`SPARKLE_PRIVATE_KEY`（EdDSA 私钥整段文本，对应 `Secrets/sparkle_eddsa_private.pem`）
+- 本地生成/查看公钥：`Scripts` 依赖 `swift package resolve` 后的 `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account pacemouse`
+- 更新包：`Scripts/make_appcast.sh`（需先 `package_app.sh`；读 `RELEASE_CHANNEL` / `SPARKLE_CHANNEL`）
+- 更新通道校验：`Scripts/verify_update_channel.sh`
 
 ## References
 

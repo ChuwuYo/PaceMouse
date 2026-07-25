@@ -7,6 +7,9 @@ let package = Package(
     platforms: [
         .macOS(.v14),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.7.0"),
+    ],
     targets: [
         .target(
             name: "PaceMouseHID",
@@ -20,7 +23,10 @@ let package = Package(
             ]),
         .executableTarget(
             name: "PaceMouse",
-            dependencies: ["PaceMouseCore"],
+            dependencies: [
+                "PaceMouseCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/PaceMouse",
             resources: [
                 .process("Resources"),
@@ -29,5 +35,8 @@ let package = Package(
             name: "PaceMouseCoreTests",
             dependencies: ["PaceMouseCore"],
             path: "Tests/PaceMouseCoreTests"),
+        .testTarget(
+            name: "PaceMouseTests",
+            path: "Tests/PaceMouseTests"),
     ]
 )

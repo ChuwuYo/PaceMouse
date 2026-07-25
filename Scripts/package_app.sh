@@ -65,6 +65,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIconFile</key><string>Icon</string>
     <key>BuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>GitCommit</key><string>${GIT_COMMIT}</string>
+    <key>SUFeedURL</key><string>https://github.com/ChuwuYo/PaceMouse/releases/download/app-latest/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>D6TGQX7Rk0CvTw9Qlt2fszDlX29EzhCWJayAwI4M0gQ=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUScheduledCheckInterval</key><integer>86400</integer>
+    <key>SUAllowsAutomaticUpdates</key><false/>
+    <key>SUAutomaticallyUpdate</key><false/>
 </dict>
 </plist>
 PLIST
@@ -139,16 +145,24 @@ if [[ ${#SWIFTPM_BUNDLES[@]} -gt 0 ]]; then
   done
 fi
 
-# Embed frameworks if any exist in the build folder.
+mkdir -p "$APP/Contents/Frameworks"
+SPARKLE_FW="$ROOT/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+if [[ ! -d "$SPARKLE_FW" ]]; then
+  echo "ERROR: Sparkle.framework not found at $SPARKLE_FW (run swift package resolve / swift build)" >&2
+  exit 1
+fi
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework"
+cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/"
 FRAMEWORK_DIRS=(".build/$CONF" ".build/${ARCH_LIST[0]}-apple-macosx/$CONF")
 for dir in "${FRAMEWORK_DIRS[@]}"; do
   if compgen -G "${dir}/*.framework" >/dev/null; then
     cp -R "${dir}/"*.framework "$APP/Contents/Frameworks/"
-    chmod -R a+rX "$APP/Contents/Frameworks"
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/$APP_NAME"
-    break
   fi
 done
+chmod -R a+rX "$APP/Contents/Frameworks"
+if ! otool -l "$APP/Contents/MacOS/$APP_NAME" | grep -q '@executable_path/../Frameworks'; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/$APP_NAME"
+fi
 
 if [[ -f "$ICON_TARGET" ]]; then
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
@@ -193,11 +207,37 @@ if [[ "$SIGNING_MODE" != "adhoc" && -n "$APP_IDENTITY" && -f "$DEV_KC" ]]; then
   security list-keychains -d user -s $EXISTING_KCS "$DEV_KC"
 fi
 
-# Sign embedded frameworks and their nested binaries before the app bundle.
+# Sign embedded frameworks before the app bundle.
+# Sparkle nested helpers must follow upstream order; Downloader keeps its entitlements.
+sign_sparkle_framework() {
+  local fw="$APP/Contents/Frameworks/Sparkle.framework"
+  local ver="$fw/Versions/B"
+  if [[ ! -d "$ver" ]]; then
+    ver="$fw/Versions/Current"
+  fi
+  if [[ -d "$ver/XPCServices/Installer.xpc" ]]; then
+    codesign "${CODESIGN_ARGS[@]}" "$ver/XPCServices/Installer.xpc"
+  fi
+  if [[ -d "$ver/XPCServices/Downloader.xpc" ]]; then
+    codesign "${CODESIGN_ARGS[@]}" --preserve-metadata=entitlements "$ver/XPCServices/Downloader.xpc"
+  fi
+  if [[ -x "$ver/Autoupdate" ]]; then
+    codesign "${CODESIGN_ARGS[@]}" "$ver/Autoupdate"
+  fi
+  if [[ -d "$ver/Updater.app" ]]; then
+    codesign "${CODESIGN_ARGS[@]}" "$ver/Updater.app"
+  fi
+  codesign "${CODESIGN_ARGS[@]}" "$fw"
+}
+
 sign_frameworks() {
   local fw
   for fw in "$APP/Contents/Frameworks/"*.framework; do
     if [[ ! -d "$fw" ]]; then
+      continue
+    fi
+    if [[ "$(basename "$fw")" == "Sparkle.framework" ]]; then
+      sign_sparkle_framework
       continue
     fi
     while IFS= read -r -d '' bin; do

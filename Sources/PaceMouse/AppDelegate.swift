@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
     private let bridge = TapBridge()
     private let statusController = StatusItemController()
+    private let updater = UpdateController()
     private lazy var settingsWindow = SettingsWindowController(settings: settings)
     private var permissionTimer: Timer?
     private var lastTrusted = false
@@ -40,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onMenuWillOpen = { [weak self] in
             self?.settingsWindow.dismiss()
         }
+        statusController.onInstallUpdate = { [weak self] in
+            self?.updater.checkForUpdates()
+        }
         settingsWindow.onChange = { [weak self] in
             self?.apply()
         }
@@ -50,6 +54,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?Seeing_Display") else { return }
             NSWorkspace.shared.open(url)
         }
+        settingsWindow.isAutoCheckEnabled = { [weak self] in
+            self?.updater.automaticallyChecksForUpdates ?? true
+        }
+        settingsWindow.onAutoCheckChange = { [weak self] enabled in
+            self?.updater.automaticallyChecksForUpdates = enabled
+        }
+        settingsWindow.canCheckForUpdates = { [weak self] in
+            self?.updater.canCheckForUpdates ?? false
+        }
+        settingsWindow.onCheckForUpdates = { [weak self] in
+            self?.updater.checkForUpdates()
+        }
+        settingsWindow.onPreReleaseChange = { [weak self] include in
+            self?.updater.applyChannelPreference(includePreRelease: include)
+        }
+        updater.onPendingUpdateChange = { [weak self] version in
+            self?.statusController.setPendingUpdate(version: version)
+        }
+        updater.onCanCheckForUpdatesChange = { [weak self] _ in
+            self?.settingsWindow.refresh()
+        }
         bridge.onStats = { stats in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -59,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         apply()
         startPermissionWatch()
+        updater.start()
         DispatchQueue.main.async { [weak self] in
             self?.promptOnLaunch()
         }

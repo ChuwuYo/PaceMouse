@@ -54,4 +54,13 @@ final class SettingsStore {
         }
         set { defaults.set(newValue, forKey: "autoThreshold"); onChange?() }
     }
+
+    var includePreReleaseUpdates: Bool {
+        get { defaults.object(forKey: Keys.includePreReleaseUpdates) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Keys.includePreReleaseUpdates); onChange?() }
+    }
+
+    enum Keys {
+        static let includePreReleaseUpdates = "includePreReleaseUpdates"
+    }
 }

@@ -72,6 +72,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onRequestPermission: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onMenuWillOpen: (() -> Void)?
+    var onInstallUpdate: (() -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
@@ -79,10 +80,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let toggleButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let rateSegments = NSSegmentedControl()
     private let permissionItem = NSMenuItem()
+    private let updateItem = NSMenuItem()
     private let settingsButton = CapsuleButton()
     private let quitButton = CapsuleButton()
     private var state = MenuState(enabled: false, rate: 250, trusted: false, showStats: true, language: "system")
     private var running = false
+    private var pendingUpdateVersion: String?
 
     override init() {
         super.init()
@@ -114,6 +117,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         permissionItem.action = #selector(permissionClicked)
         permissionItem.target = self
         menu.addItem(permissionItem)
+
+        updateItem.target = self
+        updateItem.action = #selector(updateClicked)
+        updateItem.isHidden = true
+        menu.addItem(updateItem)
         menu.addItem(.separator())
 
         settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
@@ -156,6 +164,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         permissionItem.isHidden = state.trusted
         statsItem.isHidden = !state.showStats
         reloadStrings()
+        refreshUpdateItem()
         updateIcon()
         if !running {
             statsItem.title = state.trusted ? tr("Stopped") : tr("Waiting for Accessibility Permission")
@@ -171,11 +180,27 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
+    func setPendingUpdate(version: String?) {
+        pendingUpdateVersion = version
+        refreshUpdateItem()
+        updateIcon()
+    }
+
+    private func refreshUpdateItem() {
+        if let version = pendingUpdateVersion {
+            updateItem.title = tr("Update Available — v%@…", version)
+            updateItem.isHidden = false
+        } else {
+            updateItem.isHidden = true
+        }
+    }
+
     private func reloadStrings() {
         toggleButton.title = tr("Enable Throttling")
         permissionItem.title = tr("Accessibility Permission Required…")
         settingsButton.toolTip = tr("Settings…")
         quitButton.toolTip = tr("Quit PaceMouse")
+        refreshUpdateItem()
         let word = NSAttributedString(
             string: tr("Quit"),
             attributes: [
@@ -195,11 +220,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func updateIcon() {
         guard let button = statusItem.button else { return }
-        let symbol = running ? "computermouse.fill" : "computermouse"
+        let hasUpdate = pendingUpdateVersion != nil
+        let symbol = hasUpdate
+            ? "computermouse.fill"
+            : (running ? "computermouse.fill" : "computermouse")
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "PaceMouse")?.withSymbolConfiguration(config)
         button.image?.isTemplate = true
-        button.alphaValue = running ? 1.0 : 0.5
+        button.alphaValue = (running || hasUpdate) ? 1.0 : 0.5
+        button.contentTintColor = hasUpdate ? .systemOrange : nil
+        button.toolTip = hasUpdate ? tr("Update Available") : nil
     }
 
     private func tr(_ key: String, _ args: CVarArg...) -> String {
@@ -234,6 +264,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func permissionClicked() { onRequestPermission?() }
+
+    @objc private func updateClicked() {
+        menu.cancelTracking()
+        DispatchQueue.main.async { [weak self] in
+            self?.onInstallUpdate?()
+        }
+    }
 
     @objc private func settingsClicked() {
         menu.cancelTracking()
