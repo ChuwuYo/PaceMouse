@@ -60,7 +60,18 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Keys.includePreReleaseUpdates); onChange?() }
     }
 
+    static let supportedMenuBarIcons = ["mouse", "logo"]
+
+    var menuBarIcon: String {
+        get {
+            let value = defaults.string(forKey: Keys.menuBarIcon) ?? "logo"
+            return Self.supportedMenuBarIcons.contains(value) ? value : "logo"
+        }
+        set { defaults.set(newValue, forKey: Keys.menuBarIcon); onChange?() }
+    }
+
     enum Keys {
         static let includePreReleaseUpdates = "includePreReleaseUpdates"
+        static let menuBarIcon = "menuBarIcon"
     }
 }

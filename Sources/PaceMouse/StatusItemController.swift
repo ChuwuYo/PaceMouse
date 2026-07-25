@@ -10,6 +10,7 @@ struct MenuState {
     var trusted: Bool
     var showStats: Bool
     var language: String
+    var menuBarIcon: String
 }
 
 private final class CapsuleButton: NSButton {
@@ -45,7 +46,11 @@ private final class CapsuleButton: NSButton {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let trackingAreaRef { removeTrackingArea(trackingAreaRef) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
         addTrackingArea(area)
         trackingAreaRef = area
     }
@@ -66,91 +71,40 @@ private final class CapsuleButton: NSButton {
 }
 
 @MainActor
-final class StatusItemController: NSObject, NSMenuDelegate {
+final class StatusItemController: NSObject, NSPopoverDelegate {
     var onToggleEnabled: (() -> Void)?
     var onSelectRate: ((Double) -> Void)?
     var onRequestPermission: (() -> Void)?
     var onOpenSettings: (() -> Void)?
-    var onMenuWillOpen: (() -> Void)?
+    var onPopoverWillOpen: (() -> Void)?
     var onInstallUpdate: (() -> Void)?
 
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private let menu = NSMenu()
-    private let statsItem = NSMenuItem()
+    private let statusItem = NSStatusBar.system.statusItem(withLength: 20)
+    private let popover = NSPopover()
+    private let statsLabel = NSTextField(labelWithString: "")
     private let toggleButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let rateSegments = NSSegmentedControl()
-    private let permissionItem = NSMenuItem()
-    private let updateItem = NSMenuItem()
+    private let permissionButton = NSButton(title: "", target: nil, action: nil)
+    private let updateButton = NSButton(title: "", target: nil, action: nil)
     private let settingsButton = CapsuleButton()
     private let quitButton = CapsuleButton()
-    private var state = MenuState(enabled: false, rate: 250, trusted: false, showStats: true, language: "system")
+    private let statsSeparator = NSBox()
+    private let accessorySeparator = NSBox()
+    private let footerSeparator = NSBox()
+    private var state = MenuState(
+        enabled: false, rate: 250, trusted: false, showStats: true, language: "system", menuBarIcon: "logo")
     private var running = false
     private var pendingUpdateVersion: String?
 
     override init() {
         super.init()
         updateIcon()
-        menu.delegate = self
-
-        statsItem.isEnabled = false
-        menu.addItem(statsItem)
-        menu.addItem(.separator())
-
-        toggleButton.target = self
-        toggleButton.action = #selector(toggleClicked)
-        let toggleItem = NSMenuItem()
-        toggleItem.view = StatusItemController.rowView(with: toggleButton)
-        menu.addItem(toggleItem)
-
-        rateSegments.segmentCount = SettingsStore.supportedRates.count
-        rateSegments.trackingMode = .selectOne
-        for (index, value) in SettingsStore.supportedRates.enumerated() {
-            rateSegments.setLabel("\(Int(value))", forSegment: index)
+        configureControls()
+        configurePopover()
+        if let button = statusItem.button {
+            button.target = self
+            button.action = #selector(statusItemClicked(_:))
         }
-        rateSegments.target = self
-        rateSegments.action = #selector(rateClicked)
-        let rateItem = NSMenuItem()
-        rateItem.view = StatusItemController.rowView(with: rateSegments)
-        menu.addItem(rateItem)
-
-        menu.addItem(.separator())
-        permissionItem.action = #selector(permissionClicked)
-        permissionItem.target = self
-        menu.addItem(permissionItem)
-
-        updateItem.target = self
-        updateItem.action = #selector(updateClicked)
-        updateItem.isHidden = true
-        menu.addItem(updateItem)
-        menu.addItem(.separator())
-
-        settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        settingsButton.imagePosition = .imageOnly
-        settingsButton.contentTintColor = NSColor.labelColor.withAlphaComponent(0.8)
-        settingsButton.target = self
-        settingsButton.action = #selector(settingsClicked)
-        quitButton.imagePosition = .noImage
-        quitButton.target = self
-        quitButton.action = #selector(quitClicked)
-        settingsButton.image?.isTemplate = true
-        for (button, width) in [(settingsButton, 30.0), (quitButton, 0.0)] {
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.heightAnchor.constraint(equalToConstant: 24).isActive = true
-            if width > 0 {
-                button.widthAnchor.constraint(equalToConstant: width).isActive = true
-            } else {
-                button.horizontalPadding = 12
-            }
-        }
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let bottomRow = NSStackView(views: [spacer, settingsButton, quitButton])
-        bottomRow.spacing = 10
-        let bottomItem = NSMenuItem()
-        bottomItem.view = StatusItemController.rowView(with: bottomRow)
-        menu.addItem(bottomItem)
-
-        statusItem.menu = menu
     }
 
     func update(state: MenuState) {
@@ -161,46 +115,168 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if let index = SettingsStore.supportedRates.firstIndex(of: state.rate) {
             rateSegments.selectedSegment = index
         }
-        permissionItem.isHidden = state.trusted
-        statsItem.isHidden = !state.showStats
         reloadStrings()
-        refreshUpdateItem()
+        refreshAccessoryVisibility()
         updateIcon()
         if !running {
-            statsItem.title = state.trusted ? tr("Stopped") : tr("Waiting for Accessibility Permission")
+            statsLabel.stringValue = state.trusted
+                ? tr("Stopped")
+                : tr("Waiting for Accessibility Permission")
         }
+        refreshPopoverContentSizeIfNeeded()
     }
 
     func updateStats(ingest: Int, emit: Int, bypass: Bool) {
         guard running else { return }
         if bypass {
-            statsItem.title = ingest == 0 ? tr("Smart Standby") : tr("In %lld Hz · Bypass", Int64(ingest))
+            statsLabel.stringValue = ingest == 0
+                ? tr("Smart Standby")
+                : tr("In %lld Hz · Bypass", Int64(ingest))
         } else {
-            statsItem.title = tr("In %lld Hz → Out %lld Hz", Int64(ingest), Int64(emit))
+            statsLabel.stringValue = tr("In %lld Hz → Out %lld Hz", Int64(ingest), Int64(emit))
         }
     }
 
     func setPendingUpdate(version: String?) {
         pendingUpdateVersion = version
-        refreshUpdateItem()
+        reloadStrings()
+        refreshAccessoryVisibility()
         updateIcon()
+        refreshPopoverContentSizeIfNeeded()
     }
 
-    private func refreshUpdateItem() {
-        if let version = pendingUpdateVersion {
-            updateItem.title = tr("Update Available — v%@…", version)
-            updateItem.isHidden = false
-        } else {
-            updateItem.isHidden = true
+    private func configureControls() {
+        toggleButton.target = self
+        toggleButton.action = #selector(toggleClicked)
+
+        rateSegments.segmentCount = SettingsStore.supportedRates.count
+        rateSegments.trackingMode = .selectOne
+        for (index, value) in SettingsStore.supportedRates.enumerated() {
+            rateSegments.setLabel("\(Int(value))", forSegment: index)
         }
+        rateSegments.target = self
+        rateSegments.action = #selector(rateClicked)
+
+        statsLabel.font = .menuFont(ofSize: NSFont.smallSystemFontSize)
+        statsLabel.textColor = .secondaryLabelColor
+        statsLabel.lineBreakMode = .byTruncatingTail
+        statsLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        configureTextRowButton(permissionButton, action: #selector(permissionClicked))
+        configureTextRowButton(updateButton, action: #selector(updateClicked))
+
+        for box in [statsSeparator, accessorySeparator, footerSeparator] {
+            box.boxType = .separator
+        }
+
+        settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+        settingsButton.imagePosition = .imageOnly
+        settingsButton.contentTintColor = NSColor.labelColor.withAlphaComponent(0.8)
+        settingsButton.target = self
+        settingsButton.action = #selector(settingsClicked)
+        settingsButton.image?.isTemplate = true
+
+        quitButton.imagePosition = .noImage
+        quitButton.target = self
+        quitButton.action = #selector(quitClicked)
+
+        for (button, width) in [(settingsButton, 30.0), (quitButton, 0.0)] {
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.heightAnchor.constraint(equalToConstant: 24).isActive = true
+            if width > 0 {
+                button.widthAnchor.constraint(equalToConstant: width).isActive = true
+            } else {
+                button.horizontalPadding = 12
+            }
+        }
+    }
+
+    private func configurePopover() {
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let bottomRow = NSStackView(views: [spacer, settingsButton, quitButton])
+        bottomRow.orientation = .horizontal
+        bottomRow.spacing = 10
+        bottomRow.alignment = .centerY
+
+        let stack = NSStackView(views: [
+            statsLabel,
+            statsSeparator,
+            toggleButton,
+            rateSegments,
+            accessorySeparator,
+            permissionButton,
+            updateButton,
+            footerSeparator,
+            bottomRow,
+        ])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let root = NSView()
+        root.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: root.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            root.widthAnchor.constraint(equalToConstant: 210),
+            rateSegments.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            permissionButton.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            updateButton.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            bottomRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            statsLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            statsSeparator.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            accessorySeparator.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            footerSeparator.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+        ])
+
+        let controller = NSViewController()
+        controller.view = root
+        popover.contentViewController = controller
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        refreshPopoverContentSizeIfNeeded()
+    }
+
+    private func configureTextRowButton(_ button: NSButton, action: Selector) {
+        button.bezelStyle = .recessed
+        button.isBordered = false
+        button.alignment = .left
+        button.target = self
+        button.action = action
+        button.font = .menuFont(ofSize: 0)
+        button.contentTintColor = .labelColor
+    }
+
+    private func refreshAccessoryVisibility() {
+        statsLabel.isHidden = !state.showStats
+        statsSeparator.isHidden = !state.showStats
+        permissionButton.isHidden = state.trusted
+        updateButton.isHidden = pendingUpdateVersion == nil
+        accessorySeparator.isHidden = permissionButton.isHidden && updateButton.isHidden
+    }
+
+    private func refreshPopoverContentSizeIfNeeded() {
+        guard let root = popover.contentViewController?.view else { return }
+        root.layoutSubtreeIfNeeded()
+        let size = root.fittingSize
+        guard size.width > 0, size.height > 0 else { return }
+        popover.contentSize = size
     }
 
     private func reloadStrings() {
         toggleButton.title = tr("Enable Throttling")
-        permissionItem.title = tr("Accessibility Permission Required…")
+        permissionButton.title = tr("Accessibility Permission Required…")
         settingsButton.toolTip = tr("Settings…")
         quitButton.toolTip = tr("Quit PaceMouse")
-        refreshUpdateItem()
+        if let version = pendingUpdateVersion {
+            updateButton.title = tr("Update Available — v%@…", version)
+        }
         let word = NSAttributedString(
             string: tr("Quit"),
             attributes: [
@@ -221,13 +297,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func updateIcon() {
         guard let button = statusItem.button else { return }
         let hasUpdate = pendingUpdateVersion != nil
-        let symbol = hasUpdate
-            ? "computermouse.fill"
-            : (running ? "computermouse.fill" : "computermouse")
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "PaceMouse")?.withSymbolConfiguration(config)
-        button.image?.isTemplate = true
-        button.alphaValue = (running || hasUpdate) ? 1.0 : 0.5
+        let emphasized = running || hasUpdate
+        if state.menuBarIcon == "logo" {
+            button.image = MenuBarLogoImage.template(pointSize: 20, emphasized: emphasized)
+        } else {
+            let symbol = emphasized ? "computermouse.fill" : "computermouse"
+            let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "PaceMouse")?
+                .withSymbolConfiguration(config)
+            button.image?.isTemplate = true
+        }
+        button.alphaValue = emphasized ? 1.0 : 0.4
         button.contentTintColor = hasUpdate ? .systemOrange : nil
         button.toolTip = hasUpdate ? tr("Update Available") : nil
     }
@@ -236,19 +316,26 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         L10n.tr(key, language: state.language, args: args)
     }
 
-    private static func rowView(with content: NSView) -> NSView {
-        let row = NSView()
-        row.translatesAutoresizingMaskIntoConstraints = false
-        content.translatesAutoresizingMaskIntoConstraints = false
-        row.addSubview(content)
-        NSLayoutConstraint.activate([
-            row.widthAnchor.constraint(equalToConstant: 210),
-            content.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 14),
-            content.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -14),
-            content.topAnchor.constraint(equalTo: row.topAnchor, constant: 4),
-            content.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -4),
-        ])
-        return row
+    private func closePopover() {
+        guard popover.isShown else { return }
+        popover.performClose(nil)
+    }
+
+    private func openPopover(from button: NSStatusBarButton) {
+        onPopoverWillOpen?()
+        refreshPopoverContentSizeIfNeeded()
+        NSApp.activate()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        if popover.isShown {
+            closePopover()
+            return
+        }
+        guard let button = statusItem.button else { return }
+        openPopover(from: button)
     }
 
     @objc private func toggleClicked() {
@@ -263,28 +350,35 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onSelectRate?(SettingsStore.supportedRates[index])
     }
 
-    @objc private func permissionClicked() { onRequestPermission?() }
+    @objc private func permissionClicked() {
+        closePopover()
+        onRequestPermission?()
+    }
 
     @objc private func updateClicked() {
-        menu.cancelTracking()
+        closePopover()
         DispatchQueue.main.async { [weak self] in
             self?.onInstallUpdate?()
         }
     }
 
     @objc private func settingsClicked() {
-        menu.cancelTracking()
+        closePopover()
         DispatchQueue.main.async { [weak self] in
             self?.onOpenSettings?()
         }
     }
 
     @objc private func quitClicked() {
-        menu.cancelTracking()
+        closePopover()
         NSApp.terminate(nil)
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        onMenuWillOpen?()
+    func popoverWillShow(_ notification: Notification) {
+        statusItem.button?.highlight(true)
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        statusItem.button?.highlight(false)
     }
 }

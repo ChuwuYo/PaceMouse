@@ -261,8 +261,8 @@ jobs:
             local name="$1"
             local expected="$2"
             local expected_id="${3:-}"
-            local attempt asset_id digest
-            for attempt in {1..15}; do
+            local attempt asset_id digest=""
+            for attempt in {1..20}; do
               asset_id="$(asset_id_by_name "$name" 2>/dev/null || true)"
               if [ -n "$asset_id" ] && { [ -z "$expected_id" ] || [ "$asset_id" = "$expected_id" ]; }; then
                 digest="$(
@@ -276,7 +276,25 @@ jobs:
               fi
               sleep 2
             done
-            echo "::error::等待 Release 资产 $name 的摘要就绪超时。" >&2
+            echo "::error::等待 Release 资产 $name 的摘要就绪超时（last_id=${asset_id:-none} last_digest=${digest:-none} expected=$expected）。" >&2
+            return 1
+          }
+
+          wait_for_asset_name() {
+            local asset_id="$1"
+            local expected_name="$2"
+            local attempt name=""
+            for attempt in {1..20}; do
+              name="$(
+                gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                  --jq '.name // empty' 2>/dev/null || true
+              )"
+              if [ "$name" = "$expected_name" ]; then
+                return 0
+              fi
+              sleep 1
+            done
+            echo "::error::等待资产 $asset_id 改名为 $expected_name 超时（当前: ${name:-unknown}）。" >&2
             return 1
           }
 
@@ -418,21 +436,26 @@ jobs:
           trap 'rollback_publish 143' TERM
 
           # 旧固定资产仍在线时先上传、校验唯一暂存资产。
+          echo "::notice::上传暂存 DMG: $staged_name"
           gh release upload app-latest "$staged_zip" --repo "$GITHUB_REPOSITORY"
           staged_id="$(wait_for_asset_digest "$staged_name" "sha256:$expected_digest")"
+          echo "::notice::暂存 DMG 已就绪: id=$staged_id"
 
           # 上传暂存资产可能耗时；在触碰旧固定资产前再核对一次 main。
           assert_current_main
 
           # 暂存资产完整后，把旧固定资产改成本次独有回滚名，再切换新资产。
+          # GitHub 资产改名有短暂不一致，必须轮询确认，不能立刻 test。
           if [ -n "$old_asset_id" ]; then
+            echo "::notice::旧 DMG 改名为回滚名: $old_asset_name -> $rollback_name"
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" \
               -f name="$rollback_name" >/dev/null
-            test "$(gh api "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" --jq '.name')" = "$rollback_name"
+            wait_for_asset_name "$old_asset_id" "$rollback_name"
           fi
+          echo "::notice::暂存 DMG 晋升为正式名: $staged_name -> $final_name"
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$staged_id" \
             -f name="$final_name" >/dev/null
-          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/assets/$staged_id" --jq '.name')" = "$final_name"
+          wait_for_asset_name "$staged_id" "$final_name"
 
           notes="$RUNNER_TEMP/release-notes.md"
           cat > "$notes" <<EOF

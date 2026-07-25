@@ -27,6 +27,10 @@ final class SettingsWindowController: NSWindowController {
     private let checkUpdateButton = NSButton(title: "", target: nil, action: nil)
     private let languageSegments = NSSegmentedControl()
     private let languageLabel = NSTextField(labelWithString: "")
+    private let menuBarIconTitle = NSTextField(labelWithString: "")
+    private let menuBarIconHint = NSTextField(labelWithString: "")
+    private let menuBarIconMouseButton = MenuBarIconChoiceButton()
+    private let menuBarIconLogoButton = MenuBarIconChoiceButton()
     private let shakeButton = NSButton(title: "", target: nil, action: nil)
     private let versionLabel = NSTextField(labelWithString: "")
     private let pollingRateLabel = NSTextField(labelWithString: "")
@@ -37,7 +41,7 @@ final class SettingsWindowController: NSWindowController {
     init(settings: SettingsStore) {
         self.settings = settings
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 500),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false)
@@ -110,6 +114,11 @@ final class SettingsWindowController: NSWindowController {
         if let index = L10n.supportedLanguages.firstIndex(of: settings.language) {
             languageSegments.selectedSegment = index
         }
+        menuBarIconTitle.stringValue = tr("Icon Style")
+        menuBarIconHint.stringValue = tr("How PaceMouse appears in your menu bar")
+        menuBarIconMouseButton.toolTip = tr("Mouse")
+        menuBarIconLogoButton.toolTip = tr("Logo")
+        refreshMenuBarIconSelection()
         let trusted = Permissions.isAccessibilityTrusted
         permissionLabel.stringValue = trusted ? tr("Accessibility: Granted") : tr("Accessibility: Not Granted")
         permissionButton.title = trusted ? tr("Open System Settings") : tr("Grant…")
@@ -163,6 +172,24 @@ final class SettingsWindowController: NSWindowController {
         languageSegments.target = self
         languageSegments.action = #selector(languageClicked)
 
+        menuBarIconTitle.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+        menuBarIconHint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        menuBarIconHint.textColor = .secondaryLabelColor
+        menuBarIconHint.maximumNumberOfLines = 2
+        menuBarIconHint.lineBreakMode = .byWordWrapping
+
+        configureMenuBarIconButton(
+            menuBarIconMouseButton,
+            styleID: "mouse",
+            image: NSImage(systemSymbolName: "computermouse", accessibilityDescription: tr("Mouse"))?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .medium))
+        )
+        configureMenuBarIconButton(
+            menuBarIconLogoButton,
+            styleID: "logo",
+            image: MenuBarLogoImage.template(pointSize: 20, emphasized: false)
+        )
+
         permissionButton.target = self
         permissionButton.action = #selector(permissionClicked)
         permissionButton.bezelStyle = .rounded
@@ -180,6 +207,23 @@ final class SettingsWindowController: NSWindowController {
         let languageRow = NSStackView(views: [languageLabel, languageSegments])
         languageRow.spacing = 12
 
+        let menuBarIconCopy = NSStackView(views: [menuBarIconTitle, menuBarIconHint])
+        menuBarIconCopy.orientation = .vertical
+        menuBarIconCopy.alignment = .leading
+        menuBarIconCopy.spacing = 2
+
+        let menuBarIconChoices = NSStackView(views: [menuBarIconMouseButton, menuBarIconLogoButton])
+        menuBarIconChoices.orientation = .horizontal
+        menuBarIconChoices.spacing = 8
+        menuBarIconChoices.alignment = .centerY
+
+        let menuBarIconSpacer = NSView()
+        menuBarIconSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let menuBarIconRow = NSStackView(views: [menuBarIconCopy, menuBarIconSpacer, menuBarIconChoices])
+        menuBarIconRow.orientation = .horizontal
+        menuBarIconRow.alignment = .centerY
+        menuBarIconRow.spacing = 12
+
         let permissionRow = NSStackView(views: [permissionLabel, permissionButton])
         permissionRow.spacing = 12
 
@@ -188,7 +232,7 @@ final class SettingsWindowController: NSWindowController {
 
         let stack = NSStackView(views: [
             smartCheck, thresholdRow, loginCheck, loginHint, statsCheck,
-            autoUpdateCheck, preReleaseCheck, checkUpdateButton, languageRow,
+            autoUpdateCheck, preReleaseCheck, checkUpdateButton, languageRow, menuBarIconRow,
             separator, pollingRateLabel, permissionRow, shakeButton, versionLabel,
         ])
         stack.orientation = .vertical
@@ -203,7 +247,22 @@ final class SettingsWindowController: NSWindowController {
             stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor),
             separator.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40),
+            menuBarIconRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40),
+            menuBarIconHint.widthAnchor.constraint(lessThanOrEqualToConstant: 220),
         ])
+    }
+
+    private func configureMenuBarIconButton(_ button: MenuBarIconChoiceButton, styleID: String, image: NSImage?) {
+        button.styleID = styleID
+        button.image = image
+        button.image?.isTemplate = true
+        button.target = self
+        button.action = #selector(menuBarIconClicked(_:))
+    }
+
+    private func refreshMenuBarIconSelection() {
+        menuBarIconMouseButton.isChosen = settings.menuBarIcon == "mouse"
+        menuBarIconLogoButton.isChosen = settings.menuBarIcon == "logo"
     }
 
     @objc private func smartClicked() {
@@ -256,6 +315,13 @@ final class SettingsWindowController: NSWindowController {
         let index = languageSegments.selectedSegment
         guard L10n.supportedLanguages.indices.contains(index) else { return }
         settings.language = L10n.supportedLanguages[index]
+        onChange?()
+    }
+
+    @objc private func menuBarIconClicked(_ sender: MenuBarIconChoiceButton) {
+        guard SettingsStore.supportedMenuBarIcons.contains(sender.styleID) else { return }
+        settings.menuBarIcon = sender.styleID
+        refreshMenuBarIconSelection()
         onChange?()
     }
 

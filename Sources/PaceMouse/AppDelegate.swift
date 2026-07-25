@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onOpenSettings = { [weak self] in
             self?.settingsWindow.present()
         }
-        statusController.onMenuWillOpen = { [weak self] in
+        statusController.onPopoverWillOpen = { [weak self] in
             self?.settingsWindow.dismiss()
         }
         statusController.onInstallUpdate = { [weak self] in
@@ -144,7 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rate: settings.targetHz,
             trusted: trusted,
             showStats: settings.showLiveStats,
-            language: settings.language))
+            language: settings.language,
+            menuBarIcon: settings.menuBarIcon))
         settingsWindow.refresh()
     }
 
