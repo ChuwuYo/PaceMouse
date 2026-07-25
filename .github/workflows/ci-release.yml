@@ -298,6 +298,23 @@ jobs:
             return 1
           }
 
+          wait_for_tag_sha() {
+            local expected="$1"
+            local attempt sha=""
+            for attempt in {1..20}; do
+              sha="$(
+                gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" \
+                  --jq '.object.sha // empty' 2>/dev/null || true
+              )"
+              if [ "$sha" = "$expected" ]; then
+                return 0
+              fi
+              sleep 1
+            done
+            echo "::error::等待 app-latest tag 指向 $expected 超时（当前: ${sha:-unknown}）。" >&2
+            return 1
+          }
+
           staged_id=''
           old_asset_name="$(
             gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
@@ -503,10 +520,15 @@ jobs:
           gh "${edit_args[@]}"
 
           # 新资产和发布说明就绪后才移动轻量 tag。
+          # GitHub 强制更新 ref 后偶发读到旧 SHA，必须轮询确认，不能立刻 test。
           assert_current_main
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
-            -f sha="$GITHUB_SHA" -F force=true >/dev/null
-          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha')" = "$GITHUB_SHA"
+          if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
+            -f sha="$GITHUB_SHA" -F force=true >"$RUNNER_TEMP/tag-patch.json" 2>"$RUNNER_TEMP/tag-patch.err"
+          then
+            echo "::error::移动 app-latest tag 到 $GITHUB_SHA 失败: $(tr '\n' ' ' <"$RUNNER_TEMP/tag-patch.err")"
+            exit 1
+          fi
+          wait_for_tag_sha "$GITHUB_SHA"
 
           asset_id="$(wait_for_asset_digest "$final_name" "sha256:$expected_digest" "$staged_id")"
           test "$asset_id" = "$staged_id"
