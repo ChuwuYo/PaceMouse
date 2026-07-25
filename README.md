@@ -2,10 +2,11 @@
   <img src="docs/screenshots/icon.png" width="128" alt="PaceMouse">
 </p>
 
-# PaceMouse
+<h1 align="center">PaceMouse</h1>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.zh-Hans.md">中文</a>
+  <img src="https://img.shields.io/badge/English-0891B2?style=for-the-badge" alt="English">
+  <a href="README.zh-Hans.md"><img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-64748B?style=for-the-badge" alt="中文"></a>
 </p>
 
 A macOS menu bar app that throttles high-polling-rate mouse **move / drag** events to reduce stutter.
