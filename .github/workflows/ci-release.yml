@@ -147,6 +147,7 @@ jobs:
           test -n "${SPARKLE_PRIVATE_KEY:-}"
           Scripts/make_appcast.sh
           printf '%s\n' "$MARKETING_VERSION" > version-name.txt
+          printf '%s\n' "$BUILD_NUMBER" > build-number.txt
           printf '%s\n' "$GITHUB_SHA" > source-sha.txt
           printf '%s\n' "${RELEASE_CHANNEL:-}" > release-channel.txt
           if [[ -n "${RELEASE_CHANNEL:-}" ]]; then
@@ -168,6 +169,7 @@ jobs:
             PaceMouse-*.zip
             appcast.xml
             version-name.txt
+            build-number.txt
             source-sha.txt
             release-channel.txt
           if-no-files-found: error
@@ -195,7 +197,9 @@ jobs:
           set -euo pipefail
           dmg="$(ls release/PaceMouse-*.dmg | head -1)"
           version_name="$(cat release/version-name.txt)"
+          build_number="$(cat release/build-number.txt)"
           release_channel="$(tr -d '[:space:]' < release/release-channel.txt || true)"
+          version_display="${version_name} (${build_number})"
           final_name="PaceMouse-${version_name}.dmg"
           test "$(basename "$dmg")" = "$final_name"
           source_sha="$(cat release/source-sha.txt)"
@@ -487,7 +491,7 @@ jobs:
           2. If macOS blocks the first launch: System Settings → Privacy & Security → Open Anyway (or right-click → Open)
           3. Grant Accessibility when asked
 
-          - Version: v${version_name}
+          - Version: v${version_display}
           - Commit: ${GITHUB_SHA}
 
           ---
@@ -503,13 +507,13 @@ jobs:
           2. 首次打开若被拦截：系统设置 → 隐私与安全性 → 仍要打开（或右键 App → 打开）
           3. 按提示授予辅助功能权限
 
-          - 版本：v${version_name}
+          - 版本：v${version_display}
           - 提交：${GITHUB_SHA}
           EOF
           edit_args=(
             release edit app-latest
             --repo "$GITHUB_REPOSITORY"
-            --title "PaceMouse v${version_name}"
+            --title "PaceMouse v${version_display}"
             --notes-file "$notes"
           )
           if [[ -n "$release_channel" ]]; then

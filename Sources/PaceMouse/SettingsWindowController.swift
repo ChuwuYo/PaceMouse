@@ -123,8 +123,7 @@ final class SettingsWindowController: NSWindowController {
         permissionLabel.stringValue = trusted ? tr("Accessibility: Granted") : tr("Accessibility: Not Granted")
         permissionButton.title = trusted ? tr("Open System Settings") : tr("Grant…")
         shakeButton.title = tr("Disable Shake to Locate")
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        versionLabel.stringValue = tr("PaceMouse v%@", version)
+        versionLabel.stringValue = tr("PaceMouse v%@", AppVersion.display)
         updatePollingRate(current: lastPollingCurrent, peak: lastPollingPeak)
     }
 
@@ -254,8 +253,8 @@ final class SettingsWindowController: NSWindowController {
 
     private func configureMenuBarIconButton(_ button: MenuBarIconChoiceButton, styleID: String, image: NSImage?) {
         button.styleID = styleID
+        image?.isTemplate = true
         button.image = image
-        button.image?.isTemplate = true
         button.target = self
         button.action = #selector(menuBarIconClicked(_:))
     }

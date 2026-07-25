@@ -74,7 +74,7 @@ extension UpdateController: SPUUpdaterDelegate {
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         guard Self.isItemAllowed(item) else { return }
-        let version = item.displayVersionString
+        let version = Self.displayLabel(for: item)
         Task { @MainActor in
             self.pendingDisplayVersion = version
         }
@@ -104,7 +104,7 @@ extension UpdateController: SPUStandardUserDriverDelegate {
     ) {
         guard !handleShowingUpdate else { return }
         guard Self.isItemAllowed(update) else { return }
-        let version = update.displayVersionString
+        let version = Self.displayLabel(for: update)
         Task { @MainActor in
             self.pendingDisplayVersion = version
         }
@@ -118,6 +118,10 @@ extension UpdateController: SPUStandardUserDriverDelegate {
 }
 
 extension UpdateController {
+    nonisolated private static func displayLabel(for item: SUAppcastItem) -> String {
+        AppVersion.format(marketing: item.displayVersionString, build: item.versionString)
+    }
+
     nonisolated private static func isItemAllowed(_ item: SUAppcastItem) -> Bool {
         let channel = item.channel ?? ""
         if channel == UpdateChannel.preRelease {
