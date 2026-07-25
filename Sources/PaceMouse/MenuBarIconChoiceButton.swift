@@ -1,6 +1,8 @@
 import AppKit
 
 final class MenuBarIconChoiceButton: NSButton {
+    private static let side: CGFloat = 36
+
     var styleID = ""
     var isChosen = false {
         didSet { refreshChrome() }
@@ -8,16 +10,22 @@ final class MenuBarIconChoiceButton: NSButton {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        cell = MenuBarIconChoiceCell()
         isBordered = false
         wantsLayer = true
+        layer?.masksToBounds = true
         imagePosition = .imageOnly
         imageScaling = .scaleProportionallyDown
         focusRingType = .none
         setButtonType(.momentaryChange)
         translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 36),
-            heightAnchor.constraint(equalToConstant: 36),
+            widthAnchor.constraint(equalToConstant: Self.side),
+            heightAnchor.constraint(equalToConstant: Self.side),
         ])
         refreshChrome()
     }
@@ -27,7 +35,7 @@ final class MenuBarIconChoiceButton: NSButton {
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: 36, height: 36)
+        NSSize(width: Self.side, height: Self.side)
     }
 
     override func layout() {
@@ -46,5 +54,11 @@ final class MenuBarIconChoiceButton: NSButton {
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         refreshChrome()
+    }
+}
+
+private final class MenuBarIconChoiceCell: NSButtonCell {
+    override func imageRect(forBounds rect: NSRect) -> NSRect {
+        rect.insetBy(dx: 8, dy: 8)
     }
 }

@@ -182,12 +182,12 @@ final class SettingsWindowController: NSWindowController {
             menuBarIconMouseButton,
             styleID: "mouse",
             image: NSImage(systemSymbolName: "computermouse", accessibilityDescription: tr("Mouse"))?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .medium))
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .medium, scale: .medium))
         )
         configureMenuBarIconButton(
             menuBarIconLogoButton,
             styleID: "logo",
-            image: MenuBarLogoImage.template(pointSize: 20, emphasized: false)
+            image: MenuBarLogoImage.template(pointSize: 16, emphasized: false)
         )
 
         permissionButton.target = self
@@ -212,7 +212,7 @@ final class SettingsWindowController: NSWindowController {
         menuBarIconCopy.alignment = .leading
         menuBarIconCopy.spacing = 2
 
-        let menuBarIconChoices = NSStackView(views: [menuBarIconMouseButton, menuBarIconLogoButton])
+        let menuBarIconChoices = NSStackView(views: [menuBarIconLogoButton, menuBarIconMouseButton])
         menuBarIconChoices.orientation = .horizontal
         menuBarIconChoices.spacing = 8
         menuBarIconChoices.alignment = .centerY
