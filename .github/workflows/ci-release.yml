@@ -192,7 +192,7 @@ jobs:
           ensure_release() {
             if ! gh api "$release_api" > /dev/null 2>&1; then
               gh release create app-latest --repo "$GITHUB_REPOSITORY" \
-                --title "PaceMouse 最新构建" --notes "滚动发布渠道" --prerelease > /dev/null
+                --title "PaceMouse Latest" --notes "Rolling release channel" --prerelease > /dev/null
             fi
             gh api "$release_api"
           }
@@ -348,13 +348,39 @@ jobs:
 
           notes="$RUNNER_TEMP/release-notes.md"
           cat > "$notes" <<EOF
-          PaceMouse 最新自动构建（自签名开发证书，仅滚动测试渠道；首次打开需右键→打开，并在系统设置授予辅助功能权限）。
+          ## English
+
+          Latest PaceMouse build for everyday use.
+
+          One mouse across several machines (especially mixed Windows / Linux / macOS) can flood macOS with high-polling-rate motion events and make the system stutter. This build throttles mouse move/drag before WindowServer; clicks and scrolling stay untouched.
+
+          **Install**
+          1. Download the DMG below and drag PaceMouse into Applications
+          2. First launch: right-click → Open (dev-signed; Gatekeeper warns once)
+          3. Grant Accessibility when asked
+
+          - Version: v${version_name}
+          - Commit: ${GITHUB_SHA}
+
+          ---
+
+          ## 中文
+
+          PaceMouse 日常使用的最新构建。
+
+          同一只鼠标在多台设备间切换（尤其是 Windows / Linux / macOS 混用）时，高回报率移动事件很容易把 macOS 打卡。这个构建会在进入 WindowServer 前节流鼠标的移动/拖拽；点击和滚动不受影响。
+
+          **安装**
+          1. 下载下方 DMG，拖进「应用程序」
+          2. 首次打开：右键 → 打开（自签名开发证书，Gatekeeper 会提示一次）
+          3. 按提示授予辅助功能权限
+
           - 版本：v${version_name}
           - 提交：${GITHUB_SHA}
           EOF
           gh release edit app-latest \
             --repo "$GITHUB_REPOSITORY" \
-            --title "PaceMouse v${version_name} 最新构建" \
+            --title "PaceMouse v${version_name}" \
             --notes-file "$notes" \
             --prerelease
 

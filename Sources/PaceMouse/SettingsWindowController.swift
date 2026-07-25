@@ -23,6 +23,8 @@ final class SettingsWindowController: NSWindowController {
     private let versionLabel = NSTextField(labelWithString: "")
     private let pollingRateLabel = NSTextField(labelWithString: "")
     private let rateMonitor = HidRateMonitor()
+    private var lastPollingCurrent = 0
+    private var lastPollingPeak = 0
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -59,6 +61,8 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func updatePollingRate(current: Int, peak: Int) {
+        lastPollingCurrent = current
+        lastPollingPeak = peak
         pollingRateLabel.stringValue = tr("Hardware Polling Rate") + ": " + {
             if peak == 0 { return tr("Move mouse to measure") }
             let shown = HidRateMonitor.snapped(peak) ?? peak
@@ -93,6 +97,7 @@ final class SettingsWindowController: NSWindowController {
         shakeButton.title = tr("Disable Shake to Locate")
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         versionLabel.stringValue = tr("PaceMouse v%@", version)
+        updatePollingRate(current: lastPollingCurrent, peak: lastPollingPeak)
     }
 
     private func tr(_ key: String, _ args: CVarArg...) -> String {
