@@ -1,0 +1,407 @@
+name: CI and Release App
+
+# 所有 push / PR 只经过同一个验证关；验证通过的 main 才继续签名与滚动发布。
+# workflow_dispatch 选择其他 ref 时也只验证，不会接触签名 Secrets。
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'build-app-release' || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: swift build 2>&1 | tee /tmp/build.log; test ${PIPESTATUS[0]} -eq 0
+
+      - name: Zero-warning gate
+        run: |
+          if grep -q "warning:" /tmp/build.log; then
+            echo "::error::构建存在警告，按 AGENTS.md 规范必须清零。"
+            grep "warning:" /tmp/build.log
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Package unsigned bundle
+        run: SIGNING_MODE=adhoc Scripts/package_app.sh release
+
+      - name: Verify bundle structure
+        run: |
+          test -x PaceMouse.app/Contents/MacOS/PaceMouse
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" PaceMouse.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :LSUIElement" PaceMouse.app/Contents/Info.plist | grep -q true
+          lipo -archs PaceMouse.app/Contents/MacOS/PaceMouse
+
+  package-sign:
+    name: Package and sign
+    needs: verify
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Reject stale main run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current_main" != "$GITHUB_SHA" ]; then
+            echo "::error::拒绝为旧提交签名：main=$current_main，run=$GITHUB_SHA"
+            exit 1
+          fi
+
+      # 门禁通过后才把证书写入 runner 临时 keychain，缩短敏感材料驻留时间。
+      - name: Import signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.PACEMOUSE_DEV_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.PACEMOUSE_DEV_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$CERT_P12_BASE64"
+          test -n "$CERT_PASSWORD"
+          printf '%s' "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/pacemouse-dev.p12"
+          chmod 600 "$RUNNER_TEMP/pacemouse-dev.p12"
+          security create-keychain -p "$CERT_PASSWORD" "$RUNNER_TEMP/pacemouse.keychain-db"
+          security set-keychain-settings "$RUNNER_TEMP/pacemouse.keychain-db"
+          security unlock-keychain -p "$CERT_PASSWORD" "$RUNNER_TEMP/pacemouse.keychain-db"
+          security import "$RUNNER_TEMP/pacemouse-dev.p12" -k "$RUNNER_TEMP/pacemouse.keychain-db" \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$CERT_PASSWORD" "$RUNNER_TEMP/pacemouse.keychain-db" > /dev/null
+          rm -f "$RUNNER_TEMP/pacemouse-dev.p12"
+
+      - name: Package signed app
+        run: |
+          set -euo pipefail
+          APP_IDENTITY='PaceMouse Development' DEV_KC="$RUNNER_TEMP/pacemouse.keychain-db" \
+            DEV_KC_PASS='${{ secrets.PACEMOUSE_DEV_CERT_PASSWORD }}' \
+            Scripts/package_app.sh release
+
+      - name: Verify signature
+        env:
+          EXPECTED_CERT_SHA256: ${{ secrets.PACEMOUSE_DEV_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_CERT_SHA256"
+          codesign --verify --deep --strict PaceMouse.app
+          codesign -dvv PaceMouse.app 2>&1 | grep -q "Authority=PaceMouse Development"
+          actual="$(
+            security find-certificate -c 'PaceMouse Development' -Z "$RUNNER_TEMP/pacemouse.keychain-db" \
+              | awk -F': ' '/SHA-256/{gsub(/ /, "", $2); print $2; exit}'
+          )"
+          test -n "$actual"
+          test "$actual" = "$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ' ' | tr 'a-f' 'A-F')"
+          /usr/libexec/PlistBuddy -c "Print :LSUIElement" PaceMouse.app/Contents/Info.plist | grep -q true
+
+      - name: Record release metadata
+        run: |
+          set -euo pipefail
+          source version.env
+          Scripts/make_dmg.sh
+          printf '%s\n' "$MARKETING_VERSION" > version-name.txt
+          printf '%s\n' "$GITHUB_SHA" > source-sha.txt
+
+      - name: Delete signing keychain
+        if: ${{ always() }}
+        run: security delete-keychain "$RUNNER_TEMP/pacemouse.keychain-db" || true
+
+      - name: Upload verified app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pacemouse-release-app
+          path: |
+            PaceMouse-*.dmg
+            version-name.txt
+            source-sha.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish rolling release
+    needs: package-sign
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified app
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pacemouse-release-app
+          path: release
+
+      - name: Publish asset with rollback, then move tag and verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dmg="$(ls release/PaceMouse-*.dmg | head -1)"
+          version_name="$(cat release/version-name.txt)"
+          final_name="PaceMouse-${version_name}.dmg"
+          test "$(basename "$dmg")" = "$final_name"
+          source_sha="$(cat release/source-sha.txt)"
+          expected_digest="$(shasum -a 256 "$dmg" | awk '{print $1}')"
+          test "$source_sha" = "$GITHUB_SHA"
+
+          current_main_sha() {
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'
+          }
+
+          assert_current_main() {
+            local current
+            current="$(current_main_sha)"
+            if [ "$current" != "$GITHUB_SHA" ]; then
+              echo "::error::main 已前进到 $current，拒绝用旧提交 $GITHUB_SHA 更新滚动 Release。"
+              return 1
+            fi
+          }
+
+          # concurrency 只能约束运行顺序；显式头检查同时拦截旧 run 的 Re-run。
+          assert_current_main
+
+          release_api="repos/$GITHUB_REPOSITORY/releases/tags/app-latest"
+          metadata_before="$RUNNER_TEMP/release-metadata-before.json"
+
+          ensure_release() {
+            if ! gh api "$release_api" > /dev/null 2>&1; then
+              gh release create app-latest --repo "$GITHUB_REPOSITORY" \
+                --title "PaceMouse 最新构建" --notes "滚动发布渠道" --prerelease > /dev/null
+            fi
+            gh api "$release_api"
+          }
+
+          release_before="$RUNNER_TEMP/release-before.json"
+          ensure_release > "$release_before"
+          release_id="$(jq -r '.id' "$release_before")"
+          old_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha')"
+          test -n "$release_id"
+          test -n "$old_tag_sha"
+          jq '{name, body, draft, prerelease}' "$release_before" > "$metadata_before"
+
+          staged_name="PaceMouse-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}.dmg"
+          rollback_name="PaceMouse-rollback-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.dmg"
+          staged_zip="release/$staged_name"
+          cp "$dmg" "$staged_zip"
+
+          asset_id_by_name() {
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq -r --arg name "$1" '[.assets[] | select(.name == $name) | .id][0] // empty'
+          }
+
+          wait_for_asset_digest() {
+            local name="$1"
+            local expected="$2"
+            local expected_id="${3:-}"
+            local attempt asset_id digest
+            for attempt in {1..15}; do
+              asset_id="$(asset_id_by_name "$name" 2>/dev/null || true)"
+              if [ -n "$asset_id" ] && { [ -z "$expected_id" ] || [ "$asset_id" = "$expected_id" ]; }; then
+                digest="$(
+                  gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                    --jq '.digest // empty' 2>/dev/null || true
+                )"
+                if [ "$digest" = "$expected" ]; then
+                  printf '%s\n' "$asset_id"
+                  return 0
+                fi
+              fi
+              sleep 2
+            done
+            echo "::error::等待 Release 资产 $name 的摘要就绪超时。" >&2
+            return 1
+          }
+
+          staged_id=''
+          old_asset_name="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq -r '[.assets[] | select(.name | test("^PaceMouse-[0-9]+\\.[0-9]+.*\\.dmg$")) | .name][0] // empty'
+          )"
+          old_asset_id=""
+          if [ -n "$old_asset_name" ]; then
+            old_asset_id="$(asset_id_by_name "$old_asset_name")"
+          fi
+          test -z "$(asset_id_by_name "$staged_name")"
+          test -z "$(asset_id_by_name "$rollback_name")"
+
+          rollback_publish() {
+            local status="$1"
+            local cleanup_id old_name current_tag current_metadata expected_metadata
+            local fixed_id fixed_count staged_remaining rollback_remaining
+            local rollback_failed=0
+            trap - ERR INT TERM
+            set +e
+            echo '::warning::滚动 Release 发布失败，正在恢复上一个已验证状态。'
+
+            cleanup_id="$staged_id"
+            if [ -z "$cleanup_id" ]; then
+              cleanup_id="$(asset_id_by_name "$staged_name")"
+            fi
+            if [ -n "$cleanup_id" ] && [ "$cleanup_id" != "$old_asset_id" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$cleanup_id" >/dev/null \
+                || rollback_failed=1
+            fi
+
+            if [ -n "$old_asset_id" ]; then
+              old_name="$(gh api "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" --jq '.name' 2>/dev/null)"
+              if [ -z "$old_name" ]; then
+                rollback_failed=1
+              fi
+              if [ -n "$old_name" ] && [ "$old_name" != "$old_asset_name" ]; then
+                fixed_id="$(asset_id_by_name "$old_asset_name")"
+                if [ -n "$fixed_id" ] && [ "$fixed_id" != "$old_asset_id" ]; then
+                  gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$fixed_id" >/dev/null \
+                    || rollback_failed=1
+                fi
+                gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" \
+                  -f name="$old_asset_name" >/dev/null || rollback_failed=1
+              fi
+            fi
+
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              --input "$metadata_before" >/dev/null || rollback_failed=1
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
+              -f sha="$old_tag_sha" -F force=true >/dev/null || rollback_failed=1
+
+            current_tag="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha' 2>/dev/null)"
+            if [ "$current_tag" != "$old_tag_sha" ]; then
+              rollback_failed=1
+            fi
+            current_metadata="$(
+              gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" 2>/dev/null \
+                | jq -S '{name, body, draft, prerelease}'
+            )"
+            expected_metadata="$(jq -S . "$metadata_before")"
+            if [ -z "$current_metadata" ] || [ "$current_metadata" != "$expected_metadata" ]; then
+              rollback_failed=1
+            fi
+            fixed_count="$(
+              gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" 2>/dev/null \
+                | jq --arg name "$old_asset_name" '[.assets[] | select(.name == $name)] | length'
+            )"
+            if [ -n "$old_asset_id" ]; then
+              if [ "$fixed_count" != '1' ]; then
+                rollback_failed=1
+              fi
+            elif [ "$fixed_count" != '0' ]; then
+              rollback_failed=1
+            fi
+            staged_remaining="$(asset_id_by_name "$staged_name")"
+            rollback_remaining="$(asset_id_by_name "$rollback_name")"
+            if [ -n "$staged_remaining" ] || [ -n "$rollback_remaining" ]; then
+              rollback_failed=1
+            fi
+
+            if [ "$rollback_failed" -ne 0 ]; then
+              echo '::error::滚动 Release 自动回滚未能恢复全部旧状态，需要人工检查资产、元数据与 tag。'
+            else
+              echo '::notice::滚动 Release 已恢复到发布前状态。'
+            fi
+            exit "$status"
+          }
+          trap 'rollback_publish $?' ERR
+          trap 'rollback_publish 130' INT
+          trap 'rollback_publish 143' TERM
+
+          # 旧固定资产仍在线时先上传、校验唯一暂存资产。
+          gh release upload app-latest "$staged_zip" --repo "$GITHUB_REPOSITORY"
+          staged_id="$(wait_for_asset_digest "$staged_name" "sha256:$expected_digest")"
+
+          # 上传暂存资产可能耗时；在触碰旧固定资产前再核对一次 main。
+          assert_current_main
+
+          # 暂存资产完整后，把旧固定资产改成本次独有回滚名，再切换新资产。
+          if [ -n "$old_asset_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" \
+              -f name="$rollback_name" >/dev/null
+            test "$(gh api "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" --jq '.name')" = "$rollback_name"
+          fi
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$staged_id" \
+            -f name="$final_name" >/dev/null
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/assets/$staged_id" --jq '.name')" = "$final_name"
+
+          notes="$RUNNER_TEMP/release-notes.md"
+          cat > "$notes" <<EOF
+          PaceMouse 最新自动构建（自签名开发证书，仅滚动测试渠道；首次打开需右键→打开，并在系统设置授予辅助功能权限）。
+          - 版本：v${version_name}
+          - 提交：${GITHUB_SHA}
+          EOF
+          gh release edit app-latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "PaceMouse v${version_name} 最新构建" \
+            --notes-file "$notes" \
+            --prerelease
+
+          # 新资产和发布说明就绪后才移动轻量 tag。
+          assert_current_main
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
+            -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha')" = "$GITHUB_SHA"
+
+          asset_id="$(wait_for_asset_digest "$final_name" "sha256:$expected_digest" "$staged_id")"
+          test "$asset_id" = "$staged_id"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" > "$RUNNER_TEMP/published.dmg"
+          test "$(shasum -a 256 "$RUNNER_TEMP/published.dmg" | awk '{print $1}')" = "$expected_digest"
+
+          # 若发布期间 main 已前进，就在旧资产仍可恢复时主动回滚本次结果。
+          assert_current_main
+
+          # 新状态已完整核验，从这里开始只清理旧副本。
+          trap - ERR INT TERM
+          if [ -n "$old_asset_id" ]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old_asset_id" >/dev/null
+            old_asset_id=''
+          fi
+
+          while IFS= read -r orphan_id; do
+            [ -n "$orphan_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$orphan_id" >/dev/null
+          done < <(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq -r --arg final "$final_name" \
+                '.assets[] | select(.name | test("^PaceMouse-.*\\.dmg$")) | select(.name != $final) | .id'
+          )
+
+          fixed_count="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq --arg name "$final_name" '[.assets[] | select(.name == $name)] | length'
+          )"
+          dmg_asset_count="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              | jq '[.assets[] | select(.name | test("^PaceMouse.*\\.dmg$"))] | length'
+          )"
+          final_asset_id="$(asset_id_by_name "$final_name")"
+          final_digest="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/assets/$final_asset_id" --jq '.digest'
+          )"
+          test "$fixed_count" = '1'
+          test "$dmg_asset_count" = '1'
+          test "$final_asset_id" = "$staged_id"
+          test "$final_digest" = "sha256:$expected_digest"

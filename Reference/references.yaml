@@ -1,0 +1,31 @@
+references:
+  - name: Karabiner-Elements
+    url: https://github.com/pqrs-org/Karabiner-Elements.git
+    path: Reference/Karabiner-Elements
+    purpose: 事件 tap 工业级实现参考（权限处理、tap 生命周期、超时自愈）
+    note: 仅浅克隆源码参考，不启用其子模块构建
+
+  - name: linearmouse
+    url: https://github.com/linearmouse/linearmouse.git
+    path: Reference/linearmouse
+    purpose: macOS 鼠标工具架构参考（事件处理管线、菜单栏形态）
+
+  - name: mac-mouse-fix
+    url: https://github.com/noah-nuebling/mac-mouse-fix.git
+    path: Reference/mac-mouse-fix
+    purpose: 高回报率鼠标下的事件处理性能优化实践
+
+  - name: EventTapper
+    url: https://github.com/usagimaru/EventTapper.git
+    path: Reference/EventTapper
+    purpose: CGEventTap Swift 封装最小参考
+
+  - name: pollingrate
+    url: https://github.com/84ix/pollingrate.git
+    path: Reference/pollingrate
+    purpose: M3 验收工具参考：macOS 鼠标回报率测量
+
+  - name: razer-mouse-lite-macos
+    url: https://github.com/NZKea/razer-mouse-lite-macos.git
+    path: Reference/razer-mouse-lite-macos
+    purpose: 原生菜单栏工具形态参考（AppKit status item 结构）

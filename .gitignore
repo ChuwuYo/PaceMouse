@@ -1,0 +1,10 @@
+.DS_Store
+*.dmg
+Reference/
+.build/
+*.app
+Icon.icns
+Icon.iconset/
+IconCandidates/
+PoC/poc
+PoC/generator
