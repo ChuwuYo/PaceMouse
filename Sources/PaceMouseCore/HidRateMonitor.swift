@@ -46,10 +46,14 @@ public final class HidRateMonitor: @unchecked Sendable {
         timer?.invalidate()
         timer = nil
         if let manager {
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
             IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         }
         manager = nil
+        lock.lock()
+        perDevice = [:]
         peak = 0
+        lock.unlock()
     }
 
     public static func snapped(_ rate: Int) -> Int? {

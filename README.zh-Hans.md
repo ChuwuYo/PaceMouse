@@ -12,7 +12,7 @@
 
 macOS 菜单栏工具：对高回报率鼠标的 **移动 / 拖拽** 事件进行节流，减轻卡顿。
 
-macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多台设备间切换（Windows / Linux / macOS），可用 PaceMouse 在事件进入系统分发前对移动 / 拖拽事件进行节流；点击和滚动原样放行。
+macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多台设备间切换（Windows / Linux / macOS），可用 PaceMouse 在事件进入系统分发前对移动 / 拖拽事件进行节流；点击与滚动不受影响。
 
 ## 安装
 
@@ -30,16 +30,16 @@ macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多�
 
 ## 使用
 
-- 点菜单栏图标开关节流
-- 目标频率：**125 / 250 / 500 Hz**（一般用 250）
-- 可选**智能模式**：只有实测输入超过阈值时才介入
-- 运行时可在菜单里看 `输入 → 输出` Hz
+- 通过菜单栏图标开启或关闭节流
+- 目标频率：**125 / 250 / 500 Hz**（默认建议 250）
+- 可选**智能模式**：仅当实测输入超过阈值时启用节流
+- 运行时可在菜单中查看 `输入 → 输出` Hz
 
-PaceMouse **不会**改 USB 回报率、加速曲线、按键或滚轮。那些需求请用 [LinearMouse](https://github.com/linearmouse/linearmouse)、[Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix) 一类工具。
+PaceMouse **不会**修改 USB 回报率、加速曲线、按键或滚轮。此类需求可使用 [LinearMouse](https://github.com/linearmouse/linearmouse)、[Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix) 等工具。
 
 ## 原理
 
-macOS 没有公开 API 去改设备协商好的 USB 回报率。PaceMouse 在 `.cghidEventTap` 上挂 `CGEventTap`，把移动增量累加后按目标频率（令牌桶）放行；非移动事件不进这条路径。
+macOS 没有用于降低设备协商 USB 回报率的公开 API。PaceMouse 在 `.cghidEventTap` 层通过 `CGEventTap` 累加移动增量，并按目标频率（令牌桶）放行；非移动事件不进入该路径。
 
 ## 参考
 

@@ -12,7 +12,7 @@
 
 A macOS menu bar app that throttles high-polling-rate mouse **move / drag** events to reduce stutter.
 
-macOS does not support high mouse polling rates (>500 Hz) well. If you share one mouse across several machines (Windows / Linux / macOS), PaceMouse lowers the motion event rate before events reach system dispatch; clicks and scrolling pass through unchanged.
+macOS does not support high mouse polling rates (>500 Hz) well. If you share one mouse across several machines (Windows / Linux / macOS), PaceMouse can throttle move / drag events before they reach system dispatch; clicks and scrolling are unaffected.
 
 ## Install
 
@@ -30,16 +30,16 @@ macOS does not support high mouse polling rates (>500 Hz) well. If you share one
 
 ## Usage
 
-- Toggle throttling from the menu bar icon
-- Target rate: **125 / 250 / 500 Hz** (250 is a solid default)
-- Optional **Smart Mode**: only engage when the measured input rate crosses a threshold
+- Enable or disable throttling from the menu bar icon
+- Target rate: **125 / 250 / 500 Hz** (250 recommended)
+- Optional **Smart Mode**: enable throttling only when the measured input rate exceeds a threshold
 - Live `In → Out` Hz in the menu while running
 
-PaceMouse does **not** change USB polling rate, acceleration, buttons, or scroll. For those, use something like [LinearMouse](https://github.com/linearmouse/linearmouse) or [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix).
+PaceMouse does **not** change USB polling rate, acceleration, buttons, or scroll. For those needs, see [LinearMouse](https://github.com/linearmouse/linearmouse) or [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix).
 
 ## How it works
 
-macOS has no public API to lower a device’s negotiated USB report rate. PaceMouse installs a `CGEventTap` at `.cghidEventTap`, accumulates motion deltas, and releases them at your target rate (token bucket). Non-motion events never enter that path.
+macOS has no public API to lower a device’s negotiated USB report rate. PaceMouse uses a `CGEventTap` at `.cghidEventTap` to accumulate motion deltas and release them at your target rate (token bucket). Non-motion events do not enter that path.
 
 ## References
 

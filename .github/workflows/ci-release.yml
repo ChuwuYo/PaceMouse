@@ -350,9 +350,9 @@ jobs:
           cat > "$notes" <<EOF
           ## English
 
-          Latest PaceMouse build for everyday use.
+          Latest PaceMouse build.
 
-          One mouse across several machines (especially mixed Windows / Linux / macOS) can flood macOS with high-polling-rate motion events and make the system stutter. This build throttles mouse move/drag before WindowServer; clicks and scrolling stay untouched.
+          macOS does not support high mouse polling rates (>500 Hz) well. This build throttles move / drag events before they reach system dispatch; clicks and scrolling are unaffected.
 
           **Install**
           1. Download the DMG below and drag PaceMouse into Applications
@@ -366,9 +366,9 @@ jobs:
 
           ## 中文
 
-          PaceMouse 日常使用的最新构建。
+          PaceMouse 最新构建。
 
-          同一只鼠标在多台设备间切换（尤其是 Windows / Linux / macOS 混用）时，高回报率移动事件很容易把 macOS 打卡。这个构建会在进入 WindowServer 前节流鼠标的移动/拖拽；点击和滚动不受影响。
+          macOS 目前对高回报率（>500 Hz）支持不佳。本构建在事件进入系统分发前对移动 / 拖拽事件进行节流；点击与滚动不受影响。
 
           **安装**
           1. 下载下方 DMG，拖进「应用程序」

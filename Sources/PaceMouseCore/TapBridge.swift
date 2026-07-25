@@ -207,6 +207,9 @@ public final class TapBridge: @unchecked Sendable {
                 self.tap = nil
                 return
             }
+            if let oldSource = runLoopSource, let runLoop = thread.runLoop {
+                CFRunLoopRemoveSource(runLoop, oldSource, .commonModes)
+            }
             self.tap = newTap
             let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0)
             if let runLoop = thread.runLoop {

@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusController = StatusItemController()
     private lazy var settingsWindow = SettingsWindowController(settings: settings)
     private var permissionTimer: Timer?
-    private var lastTrusted = true
+    private var lastTrusted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PointerTuner.recoverIfNeeded()
@@ -56,10 +56,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         apply()
         startPermissionWatch()
-        if !Permissions.isAccessibilityTrusted && !settings.permissionPromptShown {
-            guidePermission()
-        } else if Permissions.isAccessibilityTrusted {
+        DispatchQueue.main.async { [weak self] in
+            self?.promptOnLaunch()
+        }
+    }
+
+    private func promptOnLaunch() {
+        if Permissions.isAccessibilityTrusted {
             maybePromptLogin()
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        if settings.permissionPromptShown {
+            openAccessibilitySettings()
+        } else {
+            settings.permissionPromptShown = true
+            Permissions.requestAccessibilityPrompt()
         }
     }
 
@@ -129,19 +141,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func guidePermission() {
+        NSApp.activate(ignoringOtherApps: true)
         if settings.permissionPromptShown {
-            guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
-            NSWorkspace.shared.open(url)
+            openAccessibilitySettings()
         } else {
             settings.permissionPromptShown = true
             Permissions.requestAccessibilityPrompt()
         }
     }
 
+    private func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private func startPermissionWatch() {
         lastTrusted = Permissions.isAccessibilityTrusted
         let timer = Timer(timeInterval: 2, target: self, selector: #selector(checkPermissionChange), userInfo: nil, repeats: true)
         timer.tolerance = 0.5
+        RunLoop.main.add(timer, forMode: .common)
         permissionTimer = timer
     }
 
