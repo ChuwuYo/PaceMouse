@@ -67,6 +67,7 @@ grep -q 'Sparkle.framework not found' Scripts/package_app.sh \
 grep -q 'zip_mutated=1' .github/workflows/ci-release.yml \
   && grep -q 'appcast_mutated=1' .github/workflows/ci-release.yml \
   && grep -q 'rollback_sparkle_asset' .github/workflows/ci-release.yml \
+  && grep -q 'wait_for_asset_digest "$zip_name"' .github/workflows/ci-release.yml \
   && pass "CI Sparkle upload inside rollback window" \
   || fail "CI Sparkle upload rollback wiring"
 

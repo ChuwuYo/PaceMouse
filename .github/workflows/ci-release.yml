@@ -138,6 +138,9 @@ jobs:
           set -euo pipefail
           source version.env
           export HOMEBREW_NO_AUTO_UPDATE=1
+          # GitHub runners may have untrusted third-party taps that only warn, but
+          # newer Homebrew can refuse formulae until trust is granted.
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
           brew install create-dmg
           create-dmg --version
           Scripts/make_dmg.sh
@@ -492,14 +495,17 @@ jobs:
           assert_current_main
 
           # Sparkle 通道与 DMG 同属可回滚窗口；分文件上传，开始 mutate 前先置位以便失败可恢复。
+          # 上传后必须等 digest 就绪再继续——立刻查 asset id 会因 API 延迟空读而误触发回滚。
           test -f "release/$zip_name"
           test -f release/appcast.xml
+          zip_digest="sha256:$(shasum -a 256 "release/$zip_name" | awk '{print $1}')"
+          appcast_digest="sha256:$(shasum -a 256 release/appcast.xml | awk '{print $1}')"
           zip_mutated=1
           gh release upload app-latest "release/$zip_name" --repo "$GITHUB_REPOSITORY" --clobber
-          test -n "$(asset_id_by_name "$zip_name")"
+          wait_for_asset_digest "$zip_name" "$zip_digest" >/dev/null
           appcast_mutated=1
           gh release upload app-latest release/appcast.xml --repo "$GITHUB_REPOSITORY" --clobber
-          test -n "$(asset_id_by_name "appcast.xml")"
+          wait_for_asset_digest "appcast.xml" "$appcast_digest" >/dev/null
           assert_current_main
 
           # 新状态已完整核验，从这里开始只清理旧副本。
@@ -543,5 +549,5 @@ jobs:
           test "$dmg_asset_count" = '1'
           test "$final_asset_id" = "$staged_id"
           test "$final_digest" = "sha256:$expected_digest"
-          test -n "$(asset_id_by_name "$zip_name")"
-          test -n "$(asset_id_by_name "appcast.xml")"
+          wait_for_asset_digest "$zip_name" "$zip_digest" >/dev/null
+          wait_for_asset_digest "appcast.xml" "$appcast_digest" >/dev/null
