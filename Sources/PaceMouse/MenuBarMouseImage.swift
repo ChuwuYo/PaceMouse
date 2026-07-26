@@ -48,7 +48,6 @@ enum MenuBarMouseImage {
         return image
     }
 
-    /// Top-down capsule: parallel sides, equal round caps (MMF-like), not pear-tapered.
     private static func mouseBody(in size: CGFloat) -> NSBezierPath {
         let width = size * 0.54
         let height = size * 0.80
