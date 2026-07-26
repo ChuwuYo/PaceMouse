@@ -102,7 +102,7 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 
 ## CI & release
 
-- `.github/workflows/ci-release.yml`：push/PR 跑验证；`main` 通过后签名并滚动更新 `app-latest` Release（DMG 原子换名 + Sparkle `appcast.xml` / zip）
+- `.github/workflows/ci-release.yml`：push/PR 跑验证；`main` 通过后签名并滚动更新固定 tag 名 `app-latest` 的 Release 资产（DMG 原子换名 + Sparkle `appcast.xml` / zip）；不 force 移动 git tag tip
 - Secrets：`PACEMOUSE_DEV_CERT_P12_BASE64`、`PACEMOUSE_DEV_CERT_PASSWORD`、`PACEMOUSE_DEV_CERT_SHA256`、`SPARKLE_PRIVATE_KEY`（EdDSA 私钥整段文本，对应 `Secrets/sparkle_eddsa_private.pem`）
 - 本地生成/查看公钥：`Scripts` 依赖 `swift package resolve` 后的 `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account pacemouse`
 - 更新包：`Scripts/make_appcast.sh`（需先 `package_app.sh`；读 `RELEASE_CHANNEL` / `SPARKLE_CHANNEL`）

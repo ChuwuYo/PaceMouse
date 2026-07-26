@@ -190,7 +190,7 @@ jobs:
           name: pacemouse-release-app
           path: release
 
-      - name: Publish asset with rollback, then move tag and verify
+      - name: Publish assets with rollback and verify
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -222,6 +222,8 @@ jobs:
           # concurrency 只能约束运行顺序；显式头检查同时拦截旧 run 的 Re-run。
           assert_current_main
 
+          # 固定 tag 名 app-latest：只滚动更新 Release 资产与说明，不 force 移动 git tag SHA
+          # （GitHub：tag 已存在时 target_commitish 无用；下载 URL 按 tag 名解析）。
           release_api="repos/$GITHUB_REPOSITORY/releases/tags/app-latest"
           metadata_before="$RUNNER_TEMP/release-metadata-before.json"
 
@@ -230,6 +232,7 @@ jobs:
               create_args=(
                 release create app-latest
                 --repo "$GITHUB_REPOSITORY"
+                --target "$GITHUB_SHA"
                 --title "PaceMouse Latest"
                 --notes "Rolling release channel"
               )
@@ -246,9 +249,9 @@ jobs:
           release_before="$RUNNER_TEMP/release-before.json"
           ensure_release > "$release_before"
           release_id="$(jq -r '.id' "$release_before")"
-          old_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha')"
           test -n "$release_id"
-          test -n "$old_tag_sha"
+          # 确认固定 tag 仍存在即可，不再读取/回写 tip SHA。
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha' >/dev/null
           jq '{name, body, draft, prerelease}' "$release_before" > "$metadata_before"
 
           staged_name="PaceMouse-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}.dmg"
@@ -299,23 +302,6 @@ jobs:
               sleep 1
             done
             echo "::error::等待资产 $asset_id 改名为 $expected_name 超时（当前: ${name:-unknown}）。" >&2
-            return 1
-          }
-
-          wait_for_tag_sha() {
-            local expected="$1"
-            local attempt sha=""
-            for attempt in {1..20}; do
-              sha="$(
-                gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" \
-                  --jq '.object.sha // empty' 2>/dev/null || true
-              )"
-              if [ "$sha" = "$expected" ]; then
-                return 0
-              fi
-              sleep 1
-            done
-            echo "::error::等待 app-latest tag 指向 $expected 超时（当前: ${sha:-unknown}）。" >&2
             return 1
           }
 
@@ -376,7 +362,7 @@ jobs:
 
           rollback_publish() {
             local status="$1"
-            local cleanup_id old_name current_tag current_metadata expected_metadata
+            local cleanup_id old_name current_metadata expected_metadata
             local fixed_id fixed_count staged_remaining rollback_remaining
             local rollback_failed=0
             trap - ERR INT TERM
@@ -413,13 +399,7 @@ jobs:
 
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
               --input "$metadata_before" >/dev/null || rollback_failed=1
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
-              -f sha="$old_tag_sha" -F force=true >/dev/null || rollback_failed=1
 
-            current_tag="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-latest" --jq '.object.sha' 2>/dev/null)"
-            if [ "$current_tag" != "$old_tag_sha" ]; then
-              rollback_failed=1
-            fi
             current_metadata="$(
               gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" 2>/dev/null \
                 | jq -S '{name, body, draft, prerelease}'
@@ -446,7 +426,7 @@ jobs:
             fi
 
             if [ "$rollback_failed" -ne 0 ]; then
-              echo '::error::滚动 Release 自动回滚未能恢复全部旧状态，需要人工检查资产、元数据与 tag。'
+              echo '::error::滚动 Release 自动回滚未能恢复全部旧状态，需要人工检查资产与元数据。'
             else
               echo '::notice::滚动 Release 已恢复到发布前状态。'
             fi
@@ -523,16 +503,8 @@ jobs:
           fi
           gh "${edit_args[@]}"
 
-          # 新资产和发布说明就绪后才移动轻量 tag。
-          # GitHub 强制更新 ref 后偶发读到旧 SHA，必须轮询确认，不能立刻 test。
+          # 固定 tag 名下只核验资产；不 force 移动 app-latest git tip。
           assert_current_main
-          if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/app-latest" \
-            -f sha="$GITHUB_SHA" -F force=true >"$RUNNER_TEMP/tag-patch.json" 2>"$RUNNER_TEMP/tag-patch.err"
-          then
-            echo "::error::移动 app-latest tag 到 $GITHUB_SHA 失败: $(tr '\n' ' ' <"$RUNNER_TEMP/tag-patch.err")"
-            exit 1
-          fi
-          wait_for_tag_sha "$GITHUB_SHA"
 
           asset_id="$(wait_for_asset_digest "$final_name" "sha256:$expected_digest" "$staged_id")"
           test "$asset_id" = "$staged_id"
