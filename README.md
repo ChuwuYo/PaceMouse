@@ -10,6 +10,11 @@
   <a href="README.zh-Hans.md">中文</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ChuwuYo/PaceMouse/releases/tag/app-latest"><img src="https://img.shields.io/github/v/release/ChuwuYo/PaceMouse?display_name=release&include_prereleases&label=release" alt="release"></a>
+  <img src="https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple&logoColor=white" alt="macOS 14.0+">
+</p>
+
 A macOS menu bar app that throttles high-polling-rate mouse **move and drag** events to reduce stutter.
 
 macOS does not support high mouse polling rates (>500 Hz) well. If you use the same mouse across several machines (Windows / Linux / macOS), PaceMouse can throttle move and drag events before they reach the system; clicks and scrolling are unaffected.

@@ -10,6 +10,11 @@
   <strong>中文</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ChuwuYo/PaceMouse/releases/tag/app-latest"><img src="https://img.shields.io/github/v/release/ChuwuYo/PaceMouse?display_name=release&include_prereleases&label=release" alt="release"></a>
+  <img src="https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple&logoColor=white" alt="macOS 14.0+">
+</p>
+
 macOS 菜单栏工具：对高回报率鼠标的 **移动 / 拖拽** 事件进行节流，减轻卡顿。
 
 macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多台设备间切换（Windows / Linux / macOS），可用 PaceMouse 在事件进入系统分发前对移动 / 拖拽事件进行节流；点击与滚动不受影响。

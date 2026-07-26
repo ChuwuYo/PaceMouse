@@ -493,7 +493,7 @@ jobs:
           edit_args=(
             release edit app-latest
             --repo "$GITHUB_REPOSITORY"
-            --title "PaceMouse v${version_display}"
+            --title "v${version_display}"
             --notes-file "$notes"
           )
           if [[ -n "$release_channel" ]]; then
