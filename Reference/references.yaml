@@ -24,8 +24,3 @@ references:
     url: https://github.com/84ix/pollingrate.git
     path: Reference/pollingrate
     purpose: M3 验收工具参考：macOS 鼠标回报率测量
-
-  - name: razer-mouse-lite-macos
-    url: https://github.com/NZKea/razer-mouse-lite-macos.git
-    path: Reference/razer-mouse-lite-macos
-    purpose: 原生菜单栏工具形态参考（AppKit status item 结构）

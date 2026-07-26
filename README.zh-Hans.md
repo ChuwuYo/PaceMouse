@@ -48,7 +48,6 @@ macOS 没有用于降低设备协商 USB 回报率的公开 API。PaceMouse 在 
 - [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix) — 高回报率下的事件处理
 - [EventTapper](https://github.com/usagimaru/EventTapper) — CGEventTap 的小型 Swift 封装
 - [pollingrate](https://github.com/84ix/pollingrate) — macOS 鼠标回报率测量
-- [razer-mouse-lite-macos](https://github.com/NZKea/razer-mouse-lite-macos) — 菜单栏形态参考
 
 ## 许可
 

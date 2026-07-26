@@ -180,8 +180,7 @@ final class SettingsWindowController: NSWindowController {
         configureMenuBarIconButton(
             menuBarIconMouseButton,
             styleID: "mouse",
-            image: NSImage(systemSymbolName: "computermouse", accessibilityDescription: tr("Mouse"))?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .medium, scale: .medium))
+            image: MenuBarMouseImage.template(pointSize: 16, emphasized: false)
         )
         configureMenuBarIconButton(
             menuBarIconLogoButton,

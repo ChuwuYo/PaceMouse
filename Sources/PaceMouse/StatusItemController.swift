@@ -301,11 +301,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         if state.menuBarIcon == "logo" {
             button.image = MenuBarLogoImage.template(pointSize: 20, emphasized: emphasized)
         } else {
-            let symbol = emphasized ? "computermouse.fill" : "computermouse"
-            let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "PaceMouse")?
-                .withSymbolConfiguration(config)
-            button.image?.isTemplate = true
+            button.image = MenuBarMouseImage.template(pointSize: 20, emphasized: emphasized)
         }
         button.alphaValue = emphasized ? 1.0 : 0.4
         button.contentTintColor = hasUpdate ? .systemOrange : nil

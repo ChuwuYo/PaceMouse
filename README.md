@@ -48,7 +48,6 @@ macOS has no public API to lower a device’s negotiated USB report rate. PaceMo
 - [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix) — high-rate mouse event handling
 - [EventTapper](https://github.com/usagimaru/EventTapper) — small CGEventTap Swift wrapper
 - [pollingrate](https://github.com/84ix/pollingrate) — measuring mouse poll rate on macOS
-- [razer-mouse-lite-macos](https://github.com/NZKea/razer-mouse-lite-macos) — menu bar app shape
 
 ## License
 
