@@ -13,6 +13,8 @@
 "Shake to Locate: On" = "Shake to Locate: On";
 "Shake to Locate: Off" = "Shake to Locate: Off";
 "Turn Off…" = "Turn Off…";
+"Turn off Shake to Locate?" = "Turn off Shake to Locate?";
+"Shaking to enlarge the pointer can interfere with high-rate mice. You can change this later in Settings." = "Shaking to enlarge the pointer can interfere with high-rate mice. You can change this later in Settings.";
 "Language" = "Language";
 "System" = "System";
 "In %lld Hz → Out %lld Hz" = "In %lld Hz → Out %lld Hz";

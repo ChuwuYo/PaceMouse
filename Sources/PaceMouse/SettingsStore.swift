@@ -30,6 +30,11 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: "loginPromptShown") }
     }
 
+    var shakePromptShown: Bool {
+        get { defaults.bool(forKey: "shakePromptShown") }
+        set { defaults.set(newValue, forKey: "shakePromptShown") }
+    }
+
     var language: String {
         get { defaults.string(forKey: "language") ?? "system" }
         set { defaults.set(newValue, forKey: "language"); onChange?() }

@@ -51,8 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.guidePermission()
         }
         settingsWindow.onOpenShakeSettings = {
-            guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?Seeing_Display") else { return }
-            NSWorkspace.shared.open(url)
+            ShakeToLocate.openSystemSettings()
         }
         settingsWindow.isAutoCheckEnabled = { [weak self] in
             self?.updater.automaticallyChecksForUpdates ?? true
@@ -92,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func promptOnLaunch() {
         if Permissions.isAccessibilityTrusted {
-            maybePromptLogin()
+            maybePromptShake()
             return
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -102,6 +101,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.permissionPromptShown = true
             Permissions.requestAccessibilityPrompt()
         }
+    }
+
+    private func maybePromptShake() {
+        guard !settings.shakePromptShown else {
+            maybePromptLogin()
+            return
+        }
+        settings.shakePromptShown = true
+        guard ShakeToLocate.isEnabled else {
+            maybePromptLogin()
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = tr("Turn off Shake to Locate?")
+        alert.informativeText = tr("Shaking to enlarge the pointer can interfere with high-rate mice. You can change this later in Settings.")
+        alert.addButton(withTitle: tr("Turn Off…"))
+        alert.addButton(withTitle: tr("Not Now"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            ShakeToLocate.openSystemSettings()
+        }
+        settingsWindow.refresh()
+        maybePromptLogin()
     }
 
     private func maybePromptLogin() {
@@ -204,6 +226,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard trusted != lastTrusted else { return }
         lastTrusted = trusted
         apply()
-        if trusted { maybePromptLogin() }
+        if trusted { maybePromptShake() }
     }
 }

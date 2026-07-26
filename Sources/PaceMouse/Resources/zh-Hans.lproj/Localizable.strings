@@ -13,6 +13,8 @@
 "Shake to Locate: On" = "摇动鼠标定位：已开启";
 "Shake to Locate: Off" = "摇动鼠标定位：已关闭";
 "Turn Off…" = "去关闭";
+"Turn off Shake to Locate?" = "关闭摇动鼠标定位？";
+"Shaking to enlarge the pointer can interfere with high-rate mice. You can change this later in Settings." = "摇动鼠标放大指针可能干扰高回报率鼠标操作，建议关闭。以后可在设置中更改。";
 "Language" = "语言";
 "System" = "跟随系统";
 "In %lld Hz → Out %lld Hz" = "输入 %lld Hz → 输出 %lld Hz";

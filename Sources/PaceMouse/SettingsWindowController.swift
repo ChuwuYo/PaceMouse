@@ -123,7 +123,7 @@ final class SettingsWindowController: NSWindowController {
         let trusted = Permissions.isAccessibilityTrusted
         permissionLabel.stringValue = trusted ? tr("Accessibility: Granted") : tr("Accessibility: Not Granted")
         permissionButton.title = trusted ? tr("Open System Settings") : tr("Grant…")
-        let shakeOn = Self.isShakeToLocateEnabled()
+        let shakeOn = ShakeToLocate.isEnabled
         shakeLabel.stringValue = shakeOn ? tr("Shake to Locate: On") : tr("Shake to Locate: Off")
         shakeButton.title = shakeOn ? tr("Turn Off…") : tr("Open System Settings")
         versionLabel.stringValue = tr("PaceMouse v%@", AppVersion.display)
@@ -332,16 +332,6 @@ final class SettingsWindowController: NSWindowController {
     @objc private func permissionClicked() { onRequestPermission?() }
 
     @objc private func shakeClicked() { onOpenShakeSettings?() }
-
-    private static func isShakeToLocateEnabled() -> Bool {
-        let key = "CGDisableCursorLocationMagnification" as CFString
-        guard let value = CFPreferencesCopyAppValue(key, kCFPreferencesAnyApplication) else {
-            return true
-        }
-        if let flag = value as? Bool { return !flag }
-        if let number = value as? NSNumber { return !number.boolValue }
-        return true
-    }
 }
 
 extension SettingsWindowController: NSWindowDelegate {
