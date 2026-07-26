@@ -10,7 +10,9 @@
 "Accessibility: Not Granted" = "Accessibility: Not Granted";
 "Open System Settings" = "Open System Settings";
 "Grant…" = "Grant…";
-"Disable Shake to Locate" = "Disable Shake to Locate";
+"Shake to Locate: On" = "Shake to Locate: On";
+"Shake to Locate: Off" = "Shake to Locate: Off";
+"Turn Off…" = "Turn Off…";
 "Language" = "Language";
 "System" = "System";
 "In %lld Hz → Out %lld Hz" = "In %lld Hz → Out %lld Hz";

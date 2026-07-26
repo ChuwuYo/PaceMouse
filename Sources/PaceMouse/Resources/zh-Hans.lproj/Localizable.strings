@@ -10,7 +10,9 @@
 "Accessibility: Not Granted" = "辅助功能权限：未授权";
 "Open System Settings" = "打开系统设置";
 "Grant…" = "去授权";
-"Disable Shake to Locate" = "关闭摇动鼠标定位";
+"Shake to Locate: On" = "摇动鼠标定位：已开启";
+"Shake to Locate: Off" = "摇动鼠标定位：已关闭";
+"Turn Off…" = "去关闭";
 "Language" = "语言";
 "System" = "跟随系统";
 "In %lld Hz → Out %lld Hz" = "输入 %lld Hz → 输出 %lld Hz";

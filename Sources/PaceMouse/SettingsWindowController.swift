@@ -31,6 +31,7 @@ final class SettingsWindowController: NSWindowController {
     private let menuBarIconHint = NSTextField(labelWithString: "")
     private let menuBarIconMouseButton = MenuBarIconChoiceButton()
     private let menuBarIconLogoButton = MenuBarIconChoiceButton()
+    private let shakeLabel = NSTextField(labelWithString: "")
     private let shakeButton = NSButton(title: "", target: nil, action: nil)
     private let versionLabel = NSTextField(labelWithString: "")
     private let pollingRateLabel = NSTextField(labelWithString: "")
@@ -122,7 +123,9 @@ final class SettingsWindowController: NSWindowController {
         let trusted = Permissions.isAccessibilityTrusted
         permissionLabel.stringValue = trusted ? tr("Accessibility: Granted") : tr("Accessibility: Not Granted")
         permissionButton.title = trusted ? tr("Open System Settings") : tr("Grant…")
-        shakeButton.title = tr("Disable Shake to Locate")
+        let shakeOn = Self.isShakeToLocateEnabled()
+        shakeLabel.stringValue = shakeOn ? tr("Shake to Locate: On") : tr("Shake to Locate: Off")
+        shakeButton.title = shakeOn ? tr("Turn Off…") : tr("Open System Settings")
         versionLabel.stringValue = tr("PaceMouse v%@", AppVersion.display)
         updatePollingRate(current: lastPollingCurrent, peak: lastPollingPeak)
     }
@@ -225,13 +228,16 @@ final class SettingsWindowController: NSWindowController {
         let permissionRow = NSStackView(views: [permissionLabel, permissionButton])
         permissionRow.spacing = 12
 
+        let shakeRow = NSStackView(views: [shakeLabel, shakeButton])
+        shakeRow.spacing = 12
+
         let separator = NSBox()
         separator.boxType = .separator
 
         let stack = NSStackView(views: [
             smartCheck, thresholdRow, loginCheck, loginHint, statsCheck,
             autoUpdateCheck, preReleaseCheck, checkUpdateButton, languageRow, menuBarIconRow,
-            separator, pollingRateLabel, permissionRow, shakeButton, versionLabel,
+            separator, pollingRateLabel, permissionRow, shakeRow, versionLabel,
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -326,9 +332,23 @@ final class SettingsWindowController: NSWindowController {
     @objc private func permissionClicked() { onRequestPermission?() }
 
     @objc private func shakeClicked() { onOpenShakeSettings?() }
+
+    private static func isShakeToLocateEnabled() -> Bool {
+        let key = "CGDisableCursorLocationMagnification" as CFString
+        guard let value = CFPreferencesCopyAppValue(key, kCFPreferencesAnyApplication) else {
+            return true
+        }
+        if let flag = value as? Bool { return !flag }
+        if let number = value as? NSNumber { return !number.boolValue }
+        return true
+    }
 }
 
 extension SettingsWindowController: NSWindowDelegate {
+    func windowDidBecomeKey(_ notification: Notification) {
+        refresh()
+    }
+
     func windowWillClose(_ notification: Notification) {
         rateMonitor.stop()
     }
