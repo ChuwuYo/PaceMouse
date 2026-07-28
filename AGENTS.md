@@ -80,6 +80,19 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 - 图标：`swift Scripts/make_icon.swift` → `iconutil`；入库路径为 `Sources/PaceMouse/Resources/Icon.icns`
 - PoC（历史验证，非产品路径）：`PoC/main.swift` 等
 
+## Screenshots（README）
+
+入库路径：`docs/screenshots/`（`menu-en.png` / `menu-zh.png` / `settings-en.png` / `settings-zh.png` / `icon.png`）。
+
+**强制**：只截 `/Applications/PaceMouse.app`（CI / Sparkle 装上的固定签名包）。**禁止**为截图执行 `Scripts/package_app.sh` / `compile_and_run.sh` 或打开仓库里的 ad-hoc `PaceMouse.app`——会换 cdhash，搞乱 Accessibility TCC，用户要重授权限。
+
+流程概要：
+1. 确认跑的是 `/Applications` 里那份；版本号与当前 `version.env` 一致后再截。
+2. 菜单：点菜单栏图标 → `screencapture -l <window_id>`（或系统截图）→ `menu-zh.png` / `menu-en.png`。
+3. 设置：Popover 里打开 Settings → 语言切到「中文」/「English」各截一窗 → `settings-zh.png` / `settings-en.png`；截完语言改回「跟随系统」/ System。
+4. 取 window id：`CGWindowListCopyWindowInfo`，owner 含 PaceMouse 且高度足够的那扇；保留窗口阴影（不要 `screencapture -o`）。
+5. 截图前可设 `permissionPromptShown` / `shakePromptShown` / `loginPromptShown` 为 true，避免启动引导弹窗挡画面（UserDefaults 域 `com.chuwuyo.pacemouse`）。
+
 ## Testing
 
 - 必跑：`swift test`（`ThrottleCore`：累加、drain、reset、统计）
