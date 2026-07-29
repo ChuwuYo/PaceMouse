@@ -14,4 +14,11 @@ public enum ThrottleRuntimePolicy {
     public static func smartModeShouldEngage(peakHz: Int, threshold: Double) -> Bool {
         Double(peakHz) > threshold
     }
+
+    public static func smartModeShouldBypass(
+        peakHz: Int,
+        threshold: Double
+    ) -> Bool {
+        !smartModeShouldEngage(peakHz: peakHz, threshold: threshold)
+    }
 }

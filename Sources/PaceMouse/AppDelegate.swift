@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastTrusted = false
     private var lastAppliedAutoMode = false
     private var isBypassing = false
+    private var latestPeakHz = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PointerTuner.recoverIfNeeded()
@@ -169,19 +170,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if wasRunning {
                 bridge.setTargetHz(settings.targetHz)
                 if resetToSmartStandby {
-                    setBypass(true)
-                    lastHighPeak = .distantPast
-                } else if !autoMode {
+                    latestPeakHz = 0
+                }
+                if autoMode {
+                    setBypass(ThrottleRuntimePolicy.smartModeShouldBypass(
+                        peakHz: latestPeakHz,
+                        threshold: settings.autoThreshold
+                    ))
+                } else {
                     setBypass(false)
                 }
             } else {
+                if autoMode { latestPeakHz = 0 }
                 let initialBypass = ThrottleRuntimePolicy.initialBypass(autoMode: autoMode)
                 isBypassing = initialBypass
                 _ = bridge.start(
                     hz: settings.targetHz,
                     bypass: initialBypass
                 )
-                if autoMode { lastHighPeak = .distantPast }
             }
             if bridge.isRunning && !isBypassing {
                 PointerTuner.disableAcceleration()
@@ -205,8 +211,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.refresh()
     }
 
-    private var lastHighPeak = Date.distantPast
-
     private func setBypass(_ bypass: Bool) {
         guard isBypassing != bypass else { return }
         isBypassing = bypass
@@ -215,16 +219,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateAutoBypass(peakHz: Int) {
         guard settings.autoMode, bridge.isRunning else { return }
-        if ThrottleRuntimePolicy.smartModeShouldEngage(
+        latestPeakHz = peakHz
+        let shouldBypass = ThrottleRuntimePolicy.smartModeShouldBypass(
             peakHz: peakHz,
             threshold: settings.autoThreshold
-        ) {
-            setBypass(false)
-            lastHighPeak = Date()
-            PointerTuner.disableAcceleration()
-        } else if !isBypassing, Date().timeIntervalSince(lastHighPeak) > 5 {
-            setBypass(true)
+        )
+        setBypass(shouldBypass)
+        if shouldBypass {
             PointerTuner.restore()
+        } else {
+            PointerTuner.disableAcceleration()
         }
     }
 

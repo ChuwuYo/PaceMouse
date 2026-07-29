@@ -68,7 +68,7 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 6. 拖拽期间保持原始事件类型（不可把 dragged 降成 moved）。
 7. 节流激活时 `PointerTuner` 经 `IOHIDServiceClientSetProperty` 将指针加速写 0，停用/退出时恢复。键为 `HIDPointerAccelerationType` 的**字符串值**（如 `HIDMouseAcceleration`）；`IOHIDEventSystemClient` 须常驻持有。写 0 时落 UserDefaults 脏标记与原值；启动 `recoverIfNeeded()`；定时 `reapplyIfActive()` 覆盖热插拔。
 
-智能模式（App 层）：`autoMode` 独立于手动 `enabled` 开关；开启后 `TapBridge` 必须常驻并先以 bypass 直通监测。按 `TapBridge` 上报的 `peakHz` 与 `autoThreshold` 比较，高于阈值则节流（`bypass = false`），否则 bypass 直通；低于阈值持续 5 秒后退出节流。
+智能模式（App 层）：`autoMode` 独立于手动 `enabled` 开关；开启后 `TapBridge` 必须常驻并先以 bypass 直通监测。每个统计周期及阈值变化时，按 `TapBridge` 最近上报的 `peakHz` 与当前 `autoThreshold` 重新判断：仅当 `peakHz > autoThreshold` 时节流（`bypass = false`），等于或低于阈值立即 bypass 直通，不保留旧阈值下的节流状态。
 
 ## Setup & build
 

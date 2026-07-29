@@ -47,3 +47,26 @@ func smartModeEngagesOnlyAboveThreshold() {
     #expect(!ThrottleRuntimePolicy.smartModeShouldEngage(peakHz: 250, threshold: 250))
     #expect(!ThrottleRuntimePolicy.smartModeShouldEngage(peakHz: 249, threshold: 250))
 }
+
+@Test
+func raisingThresholdImmediatelyLeavesPreviouslyEngagedThrottle() {
+    let engagedBeforeChange = !ThrottleRuntimePolicy.smartModeShouldBypass(
+        peakHz: 500,
+        threshold: 250
+    )
+    let shouldBypass = ThrottleRuntimePolicy.smartModeShouldBypass(
+        peakHz: 500,
+        threshold: 1000
+    )
+
+    #expect(engagedBeforeChange)
+    #expect(shouldBypass)
+}
+
+@Test
+func rateEqualToThresholdStaysBypassed() {
+    #expect(ThrottleRuntimePolicy.smartModeShouldBypass(
+        peakHz: 500,
+        threshold: 500
+    ))
+}
