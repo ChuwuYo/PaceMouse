@@ -1,8 +1,9 @@
 import Foundation
+import PaceMouseCore
 
 final class SettingsStore {
     static let supportedRates: [Double] = [125, 250, 500]
-    static let customRateRange = 100...500
+    static let customRateRange = CustomRateInput.range
     static let defaultRate = 250.0
 
     var onChange: (() -> Void)?

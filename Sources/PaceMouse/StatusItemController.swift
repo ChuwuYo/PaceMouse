@@ -196,11 +196,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         customRateSlider.setContentHuggingPriority(.defaultLow, for: .horizontal)
         customRateSlider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let formatter = NumberFormatter()
-        formatter.allowsFloats = false
-        formatter.minimum = NSNumber(value: SettingsStore.customRateRange.lowerBound)
-        formatter.maximum = NSNumber(value: SettingsStore.customRateRange.upperBound)
-        customRateField.formatter = formatter
+        customRateField.formatter = CustomRateFormatter()
         customRateField.alignment = .right
         customRateField.target = self
         customRateField.action = #selector(customRateFieldSubmitted)
@@ -443,8 +439,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func commitCustomRateField() {
-        let input = customRateField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let rate = Int(input), SettingsStore.customRateRange.contains(rate) else {
+        guard let rate = CustomRateInput.value(from: customRateField.stringValue) else {
             customRateField.stringValue = "\(Int(state.customRate))"
             NSSound.beep()
             return
