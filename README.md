@@ -41,7 +41,7 @@ macOS does not support high mouse polling rates (>500 Hz) well. If you use the s
 ## Usage
 
 - Turn throttling on or off from the menu bar icon
-- Target rate: **125 / 250 / 500 Hz** (250 recommended by default)
+- Target rate: **125 / 250 / 500 Hz** (250 recommended by default), or a custom integer from **100–500 Hz**
 - Optional **Smart Mode**: throttle only when the measured input rate exceeds a threshold
 - While running, the menu shows live `In → Out` Hz
 

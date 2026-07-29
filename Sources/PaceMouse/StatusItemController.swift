@@ -7,6 +7,8 @@ private let logger = Logger(subsystem: "com.chuwuyo.pacemouse", category: "ui")
 struct MenuState {
     var enabled: Bool
     var rate: Double
+    var customRate: Double
+    var usesCustomRate: Bool
     var trusted: Bool
     var showStats: Bool
     var language: String
@@ -74,6 +76,8 @@ private final class CapsuleButton: NSButton {
 final class StatusItemController: NSObject, NSPopoverDelegate {
     var onToggleEnabled: (() -> Void)?
     var onSelectRate: ((Double) -> Void)?
+    var onSelectCustomRate: (() -> Void)?
+    var onChangeCustomRate: ((Double) -> Void)?
     var onRequestPermission: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onPopoverWillOpen: (() -> Void)?
@@ -84,6 +88,14 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let statsLabel = NSTextField(labelWithString: "")
     private let toggleButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let rateSegments = NSSegmentedControl()
+    private let customRateSegment = NSSegmentedControl()
+    private let customRateSlider = NSSlider()
+    private let customRateField = NSTextField()
+    private let customRateMinimumLabel = NSTextField(labelWithString: "")
+    private let customRateMaximumLabel = NSTextField(labelWithString: "")
+    private let customRateUnitLabel = NSTextField(labelWithString: "Hz")
+    private let rateRow = NSStackView()
+    private let customRateRow = NSStackView()
     private let permissionButton = NSButton(title: "", target: nil, action: nil)
     private let updateButton = NSButton(title: "", target: nil, action: nil)
     private let settingsButton = CapsuleButton()
@@ -92,7 +104,14 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let accessorySeparator = NSBox()
     private let footerSeparator = NSBox()
     private var state = MenuState(
-        enabled: false, rate: 250, trusted: false, showStats: true, language: "system", menuBarIcon: "logo")
+        enabled: false,
+        rate: 250,
+        customRate: 250,
+        usesCustomRate: false,
+        trusted: false,
+        showStats: true,
+        language: "system",
+        menuBarIcon: "logo")
     private var running = false
     private var pendingUpdateVersion: String?
 
@@ -112,9 +131,16 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         self.state = state
         running = state.enabled && state.trusted
         toggleButton.state = state.enabled ? .on : .off
-        if let index = SettingsStore.supportedRates.firstIndex(of: state.rate) {
+        if state.usesCustomRate {
+            rateSegments.selectedSegment = -1
+            customRateSegment.selectedSegment = 0
+        } else if let index = SettingsStore.supportedRates.firstIndex(of: state.rate) {
             rateSegments.selectedSegment = index
+            customRateSegment.selectedSegment = -1
         }
+        customRateSlider.doubleValue = state.customRate
+        customRateField.stringValue = "\(Int(state.customRate))"
+        customRateRow.isHidden = !state.usesCustomRate
         reloadStrings()
         refreshAccessoryVisibility()
         updateIcon()
@@ -157,6 +183,37 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         rateSegments.target = self
         rateSegments.action = #selector(rateClicked)
 
+        customRateSegment.segmentCount = 1
+        customRateSegment.trackingMode = .selectOne
+        customRateSegment.target = self
+        customRateSegment.action = #selector(customRateClicked)
+
+        customRateSlider.minValue = Double(SettingsStore.customRateRange.lowerBound)
+        customRateSlider.maxValue = Double(SettingsStore.customRateRange.upperBound)
+        customRateSlider.isContinuous = false
+        customRateSlider.target = self
+        customRateSlider.action = #selector(customRateSliderChanged)
+        customRateSlider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        customRateSlider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let formatter = NumberFormatter()
+        formatter.allowsFloats = false
+        formatter.minimum = NSNumber(value: SettingsStore.customRateRange.lowerBound)
+        formatter.maximum = NSNumber(value: SettingsStore.customRateRange.upperBound)
+        customRateField.formatter = formatter
+        customRateField.alignment = .right
+        customRateField.target = self
+        customRateField.action = #selector(customRateFieldSubmitted)
+        customRateField.delegate = self
+
+        customRateMinimumLabel.stringValue = "\(SettingsStore.customRateRange.lowerBound)"
+        customRateMaximumLabel.stringValue = "\(SettingsStore.customRateRange.upperBound)"
+
+        for label in [customRateMinimumLabel, customRateMaximumLabel, customRateUnitLabel] {
+            label.font = .menuFont(ofSize: NSFont.smallSystemFontSize)
+            label.textColor = .secondaryLabelColor
+        }
+
         statsLabel.font = .menuFont(ofSize: NSFont.smallSystemFontSize)
         statsLabel.textColor = .secondaryLabelColor
         statsLabel.lineBreakMode = .byTruncatingTail
@@ -192,6 +249,22 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func configurePopover() {
+        rateRow.addArrangedSubview(rateSegments)
+        rateRow.addArrangedSubview(customRateSegment)
+        rateRow.orientation = .horizontal
+        rateRow.alignment = .centerY
+        rateRow.spacing = 8
+
+        customRateRow.addArrangedSubview(customRateMinimumLabel)
+        customRateRow.addArrangedSubview(customRateSlider)
+        customRateRow.addArrangedSubview(customRateMaximumLabel)
+        customRateRow.addArrangedSubview(customRateField)
+        customRateRow.addArrangedSubview(customRateUnitLabel)
+        customRateRow.orientation = .horizontal
+        customRateRow.alignment = .centerY
+        customRateRow.spacing = 6
+        customRateRow.isHidden = !state.usesCustomRate
+
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let bottomRow = NSStackView(views: [spacer, settingsButton, quitButton])
@@ -203,7 +276,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             statsLabel,
             statsSeparator,
             toggleButton,
-            rateSegments,
+            rateRow,
+            customRateRow,
             accessorySeparator,
             permissionButton,
             updateButton,
@@ -223,8 +297,12 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            root.widthAnchor.constraint(equalToConstant: 210),
-            rateSegments.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            root.widthAnchor.constraint(equalToConstant: 288),
+            rateSegments.widthAnchor.constraint(equalToConstant: 182),
+            customRateSegment.widthAnchor.constraint(equalToConstant: 70),
+            customRateField.widthAnchor.constraint(equalToConstant: 48),
+            rateRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            customRateRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             permissionButton.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             updateButton.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             bottomRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
@@ -271,6 +349,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     private func reloadStrings() {
         toggleButton.title = tr("Enable Throttling")
+        customRateSegment.setLabel(tr("Custom"), forSegment: 0)
+        customRateSlider.setAccessibilityLabel(tr("Custom"))
+        customRateField.setAccessibilityLabel(tr("Custom"))
         permissionButton.title = tr("Accessibility Permission Required…")
         settingsButton.toolTip = tr("Settings…")
         quitButton.toolTip = tr("Quit PaceMouse")
@@ -346,6 +427,37 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         onSelectRate?(SettingsStore.supportedRates[index])
     }
 
+    @objc private func customRateClicked() {
+        logger.notice("custom rate clicked")
+        onSelectCustomRate?()
+    }
+
+    @objc private func customRateSliderChanged() {
+        let step = 5.0
+        let rate = (customRateSlider.doubleValue / step).rounded() * step
+        commitCustomRate(rate)
+    }
+
+    @objc private func customRateFieldSubmitted() {
+        commitCustomRateField()
+    }
+
+    private func commitCustomRateField() {
+        let input = customRateField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rate = Int(input), SettingsStore.customRateRange.contains(rate) else {
+            customRateField.stringValue = "\(Int(state.customRate))"
+            NSSound.beep()
+            return
+        }
+        commitCustomRate(Double(rate))
+    }
+
+    private func commitCustomRate(_ rate: Double) {
+        customRateSlider.doubleValue = rate
+        customRateField.stringValue = "\(Int(rate))"
+        onChangeCustomRate?(rate)
+    }
+
     @objc private func permissionClicked() {
         closePopover()
         onRequestPermission?()
@@ -376,5 +488,12 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         statusItem.button?.highlight(false)
+    }
+}
+
+extension StatusItemController: NSTextFieldDelegate {
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard obj.object as? NSTextField === customRateField else { return }
+        commitCustomRateField()
     }
 }

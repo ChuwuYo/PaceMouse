@@ -2,12 +2,13 @@ import Foundation
 import Testing
 
 @Test
-func updateLocalizationKeysExistInEnglishAndChinese() throws {
+func interfaceLocalizationKeysExistInEnglishAndChinese() throws {
     let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
     let keys = [
+        "Custom",
         "Automatically Check for Updates",
         "Include Pre-release Updates",
         "Check for Updates…",

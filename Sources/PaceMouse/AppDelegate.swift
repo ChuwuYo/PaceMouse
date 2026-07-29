@@ -30,7 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         statusController.onSelectRate = { [weak self] hz in
-            self?.settings.targetHz = hz
+            self?.settings.selectPresetRate(hz)
+        }
+        statusController.onSelectCustomRate = { [weak self] in
+            self?.settings.selectCustomRate()
+        }
+        statusController.onChangeCustomRate = { [weak self] hz in
+            self?.settings.customTargetHz = hz
         }
         statusController.onRequestPermission = { [weak self] in
             self?.guidePermission()
@@ -164,6 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.update(state: MenuState(
             enabled: settings.isEnabled,
             rate: settings.targetHz,
+            customRate: settings.customTargetHz,
+            usesCustomRate: settings.usesCustomRate,
             trusted: trusted,
             showStats: settings.showLiveStats,
             language: settings.language,
