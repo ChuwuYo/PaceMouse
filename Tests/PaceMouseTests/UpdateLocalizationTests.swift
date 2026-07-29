@@ -14,6 +14,9 @@ func interfaceLocalizationKeysExistInEnglishAndChinese() throws {
         "Check for Updates…",
         "Update Available — v%@…",
         "Update Available",
+        "Language",
+        "Choose App Language",
+        "Open System Settings",
     ]
     for lang in ["en", "zh-Hans"] {
         let url = root

@@ -32,11 +32,12 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 ## Architecture
 
 ```
-┌─ L0 App Shell      main / AppDelegate / StatusItemController / SettingsWindowController
+┌─ L0 App Shell      main / AppDelegate / StatusItemController / SettingsWindowController / SystemSettings
 │                    菜单栏 NSPopover（开关/频率/更新提示）、设置窗、智能模式、本地化；不实现节流算法
 │                    UpdateController —— Sparkle（自动/手动检查；静默发现后 Popover 项+图标提示，安装需确认）
 ├─ L1 Control        SettingsStore（UserDefaults：enabled、targetHz、customTargetHz、usesCustomRate、autoMode、autoThreshold、
-│                    language、menuBarIcon、showLiveStats、includePreReleaseUpdates、permission/shake/login prompt 标记）
+│                    menuBarIcon、showLiveStats、includePreReleaseUpdates、permission/shake/login prompt 标记）
+│                    应用语言完全跟随 macOS 单 App 语言设置，不在 UserDefaults 中维护独立语言偏好
 │                    自动检查更新开关走 Sparkle `automaticallyChecksForUpdates`（默认开）
 │                    预发布更新：`includePreReleaseUpdates`（默认开）→ Sparkle `allowedChannels(["pre-release"])`
 ├─ L2 Core           ThrottleCore —— 位移累加器与统计（纯逻辑，可单测）
@@ -89,7 +90,7 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 流程概要：
 1. 确认跑的是 `/Applications` 里那份；版本号与当前 `version.env` 一致后再截。
 2. 菜单：点菜单栏图标 → `screencapture -l <window_id>`（或系统截图）→ `menu-zh.png` / `menu-en.png`。
-3. 设置：Popover 里打开 Settings → 语言切到「中文」/「English」各截一窗 → `settings-zh.png` / `settings-en.png`；截完语言改回「跟随系统」/ System。
+3. 设置：Popover 里打开 Settings → 在 macOS「语言与地区」中切换 PaceMouse 的单 App 语言并重启，中英文各截一窗 → `settings-zh.png` / `settings-en.png`；截完恢复系统默认语言。
 4. 取 window id：`CGWindowListCopyWindowInfo`，owner 含 PaceMouse 且高度足够的那扇；保留窗口阴影（不要 `screencapture -o`）。
 5. 截图前可设 `permissionPromptShown` / `shakePromptShown` / `loginPromptShown` 为 true，避免启动引导弹窗挡画面（UserDefaults 域 `com.chuwuyo.pacemouse`）。
 

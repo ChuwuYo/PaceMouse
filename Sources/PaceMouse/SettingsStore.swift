@@ -94,11 +94,6 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: "shakePromptShown") }
     }
 
-    var language: String {
-        get { defaults.string(forKey: "language") ?? "system" }
-        set { defaults.set(newValue, forKey: "language"); onChange?() }
-    }
-
     var showLiveStats: Bool {
         get { defaults.object(forKey: "showLiveStats") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "showLiveStats"); onChange?() }

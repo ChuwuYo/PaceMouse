@@ -11,7 +11,6 @@ struct MenuState {
     var usesCustomRate: Bool
     var trusted: Bool
     var showStats: Bool
-    var language: String
     var menuBarIcon: String
 }
 
@@ -110,7 +109,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         usesCustomRate: false,
         trusted: false,
         showStats: true,
-        language: "system",
         menuBarIcon: "logo")
     private var running = false
     private var pendingUpdateVersion: String?
@@ -386,7 +384,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func tr(_ key: String, _ args: CVarArg...) -> String {
-        L10n.tr(key, language: state.language, args: args)
+        L10n.tr(key, args: args)
     }
 
     private func closePopover() {

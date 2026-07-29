@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 enum ShakeToLocate {
     static var isEnabled: Bool {
@@ -9,10 +9,5 @@ enum ShakeToLocate {
         if let flag = value as? Bool { return !flag }
         if let number = value as? NSNumber { return !number.boolValue }
         return true
-    }
-
-    static func openSystemSettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?Seeing_Display") else { return }
-        NSWorkspace.shared.open(url)
     }
 }

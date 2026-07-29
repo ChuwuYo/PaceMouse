@@ -6,6 +6,7 @@ import ServiceManagement
 final class SettingsWindowController: NSWindowController {
     var onChange: (() -> Void)?
     var onRequestPermission: (() -> Void)?
+    var onOpenLanguageSettings: (() -> Void)?
     var onOpenShakeSettings: (() -> Void)?
     var isAutoCheckEnabled: () -> Bool = { true }
     var onAutoCheckChange: ((Bool) -> Void)?
@@ -25,8 +26,8 @@ final class SettingsWindowController: NSWindowController {
     private let autoUpdateCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let preReleaseCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let checkUpdateButton = NSButton(title: "", target: nil, action: nil)
-    private let languageSegments = NSSegmentedControl()
     private let languageLabel = NSTextField(labelWithString: "")
+    private let languageButton = NSButton(title: "", target: nil, action: nil)
     private let menuBarIconTitle = NSTextField(labelWithString: "")
     private let menuBarIconHint = NSTextField(labelWithString: "")
     private let menuBarIconMouseButton = MenuBarIconChoiceButton()
@@ -111,10 +112,7 @@ final class SettingsWindowController: NSWindowController {
         checkUpdateButton.title = tr("Check for Updates…")
         checkUpdateButton.isEnabled = canCheckForUpdates()
         languageLabel.stringValue = tr("Language")
-        languageSegments.setLabel(tr("System"), forSegment: 0)
-        if let index = L10n.supportedLanguages.firstIndex(of: settings.language) {
-            languageSegments.selectedSegment = index
-        }
+        languageButton.title = tr("Choose App Language")
         menuBarIconTitle.stringValue = tr("Icon Style")
         menuBarIconHint.stringValue = tr("How PaceMouse appears in your menu bar")
         menuBarIconMouseButton.toolTip = tr("Mouse")
@@ -131,7 +129,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func tr(_ key: String, _ args: CVarArg...) -> String {
-        L10n.tr(key, language: settings.language, args: args)
+        L10n.tr(key, args: args)
     }
 
     private func buildContent() {
@@ -167,12 +165,9 @@ final class SettingsWindowController: NSWindowController {
         checkUpdateButton.action = #selector(checkUpdateClicked)
         checkUpdateButton.bezelStyle = .rounded
 
-        languageSegments.segmentCount = L10n.supportedLanguages.count
-        languageSegments.trackingMode = .selectOne
-        languageSegments.setLabel("中文", forSegment: 1)
-        languageSegments.setLabel("English", forSegment: 2)
-        languageSegments.target = self
-        languageSegments.action = #selector(languageClicked)
+        languageButton.target = self
+        languageButton.action = #selector(languageClicked)
+        languageButton.bezelStyle = .rounded
 
         menuBarIconTitle.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         menuBarIconHint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -205,7 +200,7 @@ final class SettingsWindowController: NSWindowController {
         let thresholdRow = NSStackView(views: [thresholdLabel, thresholdSegments])
         thresholdRow.spacing = 12
 
-        let languageRow = NSStackView(views: [languageLabel, languageSegments])
+        let languageRow = NSStackView(views: [languageLabel, languageButton])
         languageRow.spacing = 12
 
         let menuBarIconCopy = NSStackView(views: [menuBarIconTitle, menuBarIconHint])
@@ -316,10 +311,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func languageClicked() {
-        let index = languageSegments.selectedSegment
-        guard L10n.supportedLanguages.indices.contains(index) else { return }
-        settings.language = L10n.supportedLanguages[index]
-        onChange?()
+        onOpenLanguageSettings?()
     }
 
     @objc private func menuBarIconClicked(_ sender: MenuBarIconChoiceButton) {

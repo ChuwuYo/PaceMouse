@@ -56,8 +56,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.onRequestPermission = { [weak self] in
             self?.guidePermission()
         }
+        settingsWindow.onOpenLanguageSettings = {
+            SystemSettings.open(.languageAndRegion)
+        }
         settingsWindow.onOpenShakeSettings = {
-            ShakeToLocate.openSystemSettings()
+            SystemSettings.open(.shakeToLocate)
         }
         settingsWindow.isAutoCheckEnabled = { [weak self] in
             self?.updater.automaticallyChecksForUpdates ?? true
@@ -102,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         if settings.permissionPromptShown {
-            openAccessibilitySettings()
+            SystemSettings.open(.accessibility)
         } else {
             settings.permissionPromptShown = true
             Permissions.requestAccessibilityPrompt()
@@ -126,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: tr("Turn Off…"))
         alert.addButton(withTitle: tr("Not Now"))
         if alert.runModal() == .alertFirstButtonReturn {
-            ShakeToLocate.openSystemSettings()
+            SystemSettings.open(.shakeToLocate)
         }
         settingsWindow.refresh()
         maybePromptLogin()
@@ -148,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func tr(_ key: String) -> String {
-        L10n.tr(key, language: settings.language)
+        L10n.tr(key)
     }
 
     private func apply() {
@@ -174,7 +177,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             usesCustomRate: settings.usesCustomRate,
             trusted: trusted,
             showStats: settings.showLiveStats,
-            language: settings.language,
             menuBarIcon: settings.menuBarIcon))
         settingsWindow.refresh()
     }
@@ -203,16 +205,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func guidePermission() {
         NSApp.activate(ignoringOtherApps: true)
         if settings.permissionPromptShown {
-            openAccessibilitySettings()
+            SystemSettings.open(.accessibility)
         } else {
             settings.permissionPromptShown = true
             Permissions.requestAccessibilityPrompt()
         }
-    }
-
-    private func openAccessibilitySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
-        NSWorkspace.shared.open(url)
     }
 
     private func startPermissionWatch() {
