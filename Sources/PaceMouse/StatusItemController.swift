@@ -397,7 +397,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         refreshPopoverContentSizeIfNeeded()
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        guard let window = popover.contentViewController?.view.window else { return }
+        window.makeKey()
+        window.makeFirstResponder(nil)
     }
 
     @objc private func statusItemClicked(_ sender: Any?) {
