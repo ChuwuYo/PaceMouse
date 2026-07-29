@@ -37,7 +37,8 @@ macOS 菜单栏工具：对高回报率（>500 Hz）鼠标的 move / drag 事件
 │                    UpdateController —— Sparkle（自动/手动检查；静默发现后 Popover 项+图标提示，安装需确认）
 ├─ L1 Control        SettingsStore（UserDefaults：enabled、targetHz、customTargetHz、usesCustomRate、autoMode、autoThreshold、
 │                    menuBarIcon、showLiveStats、includePreReleaseUpdates、permission/shake/login prompt 标记）
-│                    应用语言完全跟随 macOS 单 App 语言设置，不在 UserDefaults 中维护独立语言偏好
+│                    应用语言完全跟随 macOS 单 App 语言设置，支持 en / zh-Hans / zh-Hant / ja / ko / pt / es / de / fr / it，
+│                    不在 UserDefaults 中维护独立语言偏好
 │                    自动检查更新开关走 Sparkle `automaticallyChecksForUpdates`（默认开）
 │                    预发布更新：`includePreReleaseUpdates`（默认开）→ Sparkle `allowedChannels(["pre-release"])`
 ├─ L2 Core           ThrottleCore —— 位移累加器与统计（纯逻辑，可单测）

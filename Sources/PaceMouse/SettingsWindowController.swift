@@ -151,6 +151,8 @@ final class SettingsWindowController: NSWindowController {
 
         loginHint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         loginHint.textColor = .secondaryLabelColor
+        loginHint.maximumNumberOfLines = 2
+        loginHint.lineBreakMode = .byWordWrapping
 
         statsCheck.target = self
         statsCheck.action = #selector(statsClicked)
