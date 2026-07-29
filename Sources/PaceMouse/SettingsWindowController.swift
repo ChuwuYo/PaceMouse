@@ -4,7 +4,6 @@ import ServiceManagement
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
-    var onChange: (() -> Void)?
     var onRequestPermission: (() -> Void)?
     var onOpenLanguageSettings: (() -> Void)?
     var onOpenShakeSettings: (() -> Void)?
@@ -268,14 +267,12 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func smartClicked() {
         settings.autoMode = smartCheck.state == .on
-        onChange?()
     }
 
     @objc private func thresholdClicked() {
         let index = thresholdSegments.selectedSegment
         guard SettingsStore.supportedAutoThresholds.indices.contains(index) else { return }
         settings.autoThreshold = SettingsStore.supportedAutoThresholds[index]
-        onChange?()
     }
 
     @objc private func loginClicked() {
@@ -294,7 +291,6 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func statsClicked() {
         settings.showLiveStats = statsCheck.state == .on
-        onChange?()
     }
 
     @objc private func autoUpdateClicked() {
@@ -305,7 +301,6 @@ final class SettingsWindowController: NSWindowController {
         let include = preReleaseCheck.state == .on
         settings.includePreReleaseUpdates = include
         onPreReleaseChange?(include)
-        onChange?()
     }
 
     @objc private func checkUpdateClicked() {
@@ -320,7 +315,6 @@ final class SettingsWindowController: NSWindowController {
         guard SettingsStore.supportedMenuBarIcons.contains(sender.styleID) else { return }
         settings.menuBarIcon = sender.styleID
         refreshMenuBarIconSelection()
-        onChange?()
     }
 
     @objc private func permissionClicked() { onRequestPermission?() }

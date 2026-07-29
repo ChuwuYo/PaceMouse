@@ -84,9 +84,12 @@ public final class TapBridge: @unchecked Sendable {
     }
 
     @discardableResult
-    public func start(hz: Double) -> TapState {
+    public func start(hz: Double, bypass: Bool = false) -> TapState {
         stop()
         targetHz = hz
+        bypassLock.lock()
+        bypassValue = bypass
+        bypassLock.unlock()
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,

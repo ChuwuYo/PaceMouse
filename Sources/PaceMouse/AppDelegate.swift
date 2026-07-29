@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settingsWindow = SettingsWindowController(settings: settings)
     private var permissionTimer: Timer?
     private var lastTrusted = false
+    private var lastAppliedAutoMode = false
+    private var isBypassing = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         PointerTuner.recoverIfNeeded()
@@ -50,9 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onInstallUpdate = { [weak self] in
             self?.updater.checkForUpdates()
         }
-        settingsWindow.onChange = { [weak self] in
-            self?.apply()
-        }
         settingsWindow.onRequestPermission = { [weak self] in
             self?.guidePermission()
         }
@@ -86,8 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bridge.onStats = { stats in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                self.statusController.updateStats(ingest: stats.ingest, emit: stats.emit, bypass: self.isBypassing)
                 self.updateAutoBypass(peakHz: stats.peakHz)
-                self.statusController.updateStats(ingest: stats.ingest, emit: stats.emit, bypass: self.bridge.bypass)
             }
         }
         apply()
@@ -156,22 +155,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func apply() {
         let trusted = Permissions.isAccessibilityTrusted
-        logger.notice("apply: enabled=\(self.settings.isEnabled) hz=\(self.settings.targetHz) trusted=\(trusted)")
-        if !settings.autoMode { bridge.bypass = false }
-        if settings.isEnabled && trusted {
-            if bridge.isRunning {
+        let autoMode = settings.autoMode
+        let wasRunning = bridge.isRunning
+        let resetToSmartStandby = autoMode && (!lastAppliedAutoMode || !wasRunning)
+        lastAppliedAutoMode = autoMode
+        logger.notice("apply: enabled=\(self.settings.isEnabled) auto=\(autoMode) hz=\(self.settings.targetHz) trusted=\(trusted)")
+        let shouldRunTap = ThrottleRuntimePolicy.shouldRunTap(
+            manualEnabled: settings.isEnabled,
+            autoMode: autoMode,
+            accessibilityTrusted: trusted
+        )
+        if shouldRunTap {
+            if wasRunning {
                 bridge.setTargetHz(settings.targetHz)
+                if resetToSmartStandby {
+                    setBypass(true)
+                    lastHighPeak = .distantPast
+                } else if !autoMode {
+                    setBypass(false)
+                }
+            } else {
+                let initialBypass = ThrottleRuntimePolicy.initialBypass(autoMode: autoMode)
+                isBypassing = initialBypass
+                _ = bridge.start(
+                    hz: settings.targetHz,
+                    bypass: initialBypass
+                )
+                if autoMode { lastHighPeak = .distantPast }
+            }
+            if bridge.isRunning && !isBypassing {
                 PointerTuner.disableAcceleration()
             } else {
-                let state = bridge.start(hz: settings.targetHz)
-                if state == .running { PointerTuner.disableAcceleration() }
+                PointerTuner.restore()
             }
         } else {
             bridge.stop()
+            isBypassing = false
             PointerTuner.restore()
         }
         statusController.update(state: MenuState(
             enabled: settings.isEnabled,
+            tapRunning: bridge.isRunning,
             rate: settings.targetHz,
             customRate: settings.customTargetHz,
             usesCustomRate: settings.usesCustomRate,
@@ -183,17 +207,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var lastHighPeak = Date.distantPast
 
+    private func setBypass(_ bypass: Bool) {
+        guard isBypassing != bypass else { return }
+        isBypassing = bypass
+        bridge.bypass = bypass
+    }
+
     private func updateAutoBypass(peakHz: Int) {
-        guard settings.autoMode, settings.isEnabled else {
-            bridge.bypass = false
-            return
-        }
-        if Double(peakHz) > settings.autoThreshold {
-            bridge.bypass = false
+        guard settings.autoMode, bridge.isRunning else { return }
+        if ThrottleRuntimePolicy.smartModeShouldEngage(
+            peakHz: peakHz,
+            threshold: settings.autoThreshold
+        ) {
+            setBypass(false)
             lastHighPeak = Date()
             PointerTuner.disableAcceleration()
-        } else if bridge.bypass == false, Date().timeIntervalSince(lastHighPeak) > 5 {
-            bridge.bypass = true
+        } else if !isBypassing, Date().timeIntervalSince(lastHighPeak) > 5 {
+            setBypass(true)
             PointerTuner.restore()
         }
     }

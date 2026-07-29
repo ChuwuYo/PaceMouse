@@ -6,6 +6,7 @@ private let logger = Logger(subsystem: "com.chuwuyo.pacemouse", category: "ui")
 
 struct MenuState {
     var enabled: Bool
+    var tapRunning: Bool
     var rate: Double
     var customRate: Double
     var usesCustomRate: Bool
@@ -104,6 +105,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let footerSeparator = NSBox()
     private var state = MenuState(
         enabled: false,
+        tapRunning: false,
         rate: 250,
         customRate: 250,
         usesCustomRate: false,
@@ -127,7 +129,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     func update(state: MenuState) {
         logger.notice("update ui: enabled=\(state.enabled) rate=\(state.rate) trusted=\(state.trusted)")
         self.state = state
-        running = state.enabled && state.trusted
+        running = state.tapRunning && state.trusted
         toggleButton.state = state.enabled ? .on : .off
         if state.usesCustomRate {
             rateSegments.selectedSegment = -1
