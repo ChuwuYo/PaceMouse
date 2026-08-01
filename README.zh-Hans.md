@@ -44,6 +44,7 @@ macOS 目前对高回报率（>500 Hz）支持不佳。若同一只鼠标在多�
 - 目标频率：**125 / 250 / 500 Hz**（默认建议 250），也可自定义 **100–500 Hz** 整数
 - 可选**智能模式**：仅当实测输入超过阈值时启用节流
 - 运行时可在菜单中查看实时 `输入 → 输出` Hz
+- 界面语言：英语、简体中文、繁体中文、日语、韩语、德语、法语、西班牙语、葡萄牙语、意大利语 — 在 **系统设置 → 通用 → 语言与地区 → 应用程序** 中为 PaceMouse 单独指定
 
 PaceMouse **不会**修改 USB 回报率、加速曲线、按键或滚轮。如需这些功能，可使用 [LinearMouse](https://github.com/linearmouse/linearmouse)、[Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix) 等工具。
 

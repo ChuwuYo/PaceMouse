@@ -44,6 +44,7 @@ macOS does not support high mouse polling rates (>500 Hz) well. If you use the s
 - Target rate: **125 / 250 / 500 Hz** (250 recommended by default), or a custom integer from **100–500 Hz**
 - Optional **Smart Mode**: throttle only when the measured input rate exceeds a threshold
 - While running, the menu shows live `In → Out` Hz
+- Languages: English, Simplified Chinese, Traditional Chinese, Japanese, Korean, German, French, Spanish, Portuguese, Italian — set per app in **System Settings → General → Language & Region → Applications**
 
 PaceMouse does **not** change USB polling rate, acceleration curve, buttons, or scrolling. For those, see [LinearMouse](https://github.com/linearmouse/linearmouse) or [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix).
 
